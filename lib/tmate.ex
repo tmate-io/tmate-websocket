@@ -10,7 +10,7 @@ defmodule Tmate do
     ]
 
     children = [
-      :ranch.child_spec(:daemon_tcp, 10, :ranch_tcp, listen_options, Tmate.DaemonTcp, []),
+      :ranch.child_spec(:daemon_tcp, 1, :ranch_tcp, listen_options, Tmate.DaemonTcp, []),
       supervisor(Tmate.SessionRegistery, [[name: Tmate.SessionRegistery]]),
     ]
     Supervisor.start_link(children, [strategy: :one_for_one, name: Tmate.Supervisor])

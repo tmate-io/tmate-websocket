@@ -14,58 +14,46 @@ defmodule Tmate.DaemonTcp do
     :ok = transport.setopts(socket, [active: :once])
     session = Tmate.SessionRegistery.new_session(Tmate.SessionRegistery, self)
 
-    Logger.info("Daemon connection accepted")
+    Process.link(session)
 
     state = %{socket: socket, transport: transport, session: session, mpac_buffer: <<>>}
     :gen_server.enter_loop(__MODULE__, [], state)
   end
 
-  def send_msg(server, msg) do
-    GenServer.cast(server, {:send_msg, msg})
-  end
-
-  def handle_call(_resquest, _from, state) do
-    {:reply, :ok, state}
-  end
-
   def handle_info({:tcp, socket, data},
                   state=%{socket: socket, transport: transport, mpac_buffer: mpac_buffer}) do
     :ok = transport.setopts(socket, [active: :once])
-    {:ok, state} = handle_data(state, mpac_buffer <> data)
+    {:ok, state} = receive_data(state, mpac_buffer <> data)
     {:noreply, state}
   end
 
   def handle_info({:tcp_error, _socket, reason}, state) do
-    Logger.info("Daemon connection errored: #{reason}")
+    Logger.warn("Daemon connection errored: #{reason}")
     {:stop, reason, state}
   end
 
   def handle_info({:tcp_closed, _socket}, state) do
-    Logger.info("Daemon connection closed")
     {:stop, :normal, state}
   end
 
-  def handle_info(_info, state) do
-    {:noreply, state}
-  end
-
-  def handle_cast({:send_msg, msg}, state) do
-    {:ok, data} = MessagePack.pack(msg)
-    :ok = state.transport.send(state.socket, data)
-    {:noreply, state}
-  end
-
-  defp handle_data(state, data) do
+  defp receive_data(state, data) do
     case MessagePack.unpack_once(data) do
       {:ok, {msg, rest}} ->
-        :ok = handle_message(state, msg)
-        handle_data(state, rest)
+        :ok = Tmate.Session.feed_daemon_message(state.session, msg)
+        receive_data(state, rest)
       {:error, :incomplete} ->
         {:ok, %{state | mpac_buffer: data}}
     end
   end
 
-  defp handle_message(state, msg) do
-    Tmate.Session.feed_daemon_message(state.session, msg)
+  def send_msg(daemon, msg) do
+    # Synchronous to avoid overflowing the queues
+    GenServer.call(daemon, {:send_msg, msg})
+  end
+
+  def handle_call({:send_msg, msg}, _from, state) do
+    {:ok, data} = MessagePack.pack(msg)
+    :ok = state.transport.send(state.socket, data)
+    {:reply, :ok, state}
   end
 end
