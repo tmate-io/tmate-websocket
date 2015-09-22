@@ -17,7 +17,7 @@ defmodule Chat.Mixfile do
   # Type `mix help compile.app` for more information
   def application do
     [mod: {Tmate, []},
-     applications: [:ranch, :logger]]
+     applications: [:logger, :ranch, :cowboy]]
   end
 
   # Specifies your project dependencies
@@ -25,10 +25,9 @@ defmodule Chat.Mixfile do
   # Type `mix help deps` for examples and options
   defp deps do
     [
-      {:ranch, []},
+      {:ranch, "~> 1.1.0"},
+      {:cowboy, "~> 1.0.3"},
       {:message_pack, "~> 0.2.0"},
-      # {:msgpack, github: "msgpack/msgpack-erlang"},
-     # {:ssh, "== 3.2"},
     ]
   end
 end

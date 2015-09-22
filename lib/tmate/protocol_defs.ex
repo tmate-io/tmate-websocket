@@ -17,12 +17,9 @@ defmodule Tmate.ProtocolDefs do
 
   define tmate_max_message_size, (17*1024)
 
-  define control_protocol_version, 1
-
   enum tmate_control_out_msg_types, [
     tmate_ctl_auth,
     tmate_ctl_deamon_out_msg,
-    tmate_ctl_keyframe,
   ]
 
   enum tmate_control_in_msg_types, [

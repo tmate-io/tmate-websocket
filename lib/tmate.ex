@@ -4,15 +4,21 @@ defmodule Tmate do
   def start(_type, _args) do
     import Supervisor.Spec
 
-    listen_options = [
-      port: 7000,
-      max_connections: :infinity,
-    ]
+    Application.put_env(:phoenix, :serve_endpoints, true, persistent: true)
+
+    {:ok, daemon_options} = Application.fetch_env(:tmate, :daemon)
+    {:ok, websocket_options} = Application.fetch_env(:tmate, :websocket)
+
+    cowboy_opts = [env: [dispatch: Tmate.WebSocket.cowboy_dispatch], compress: true]
 
     children = [
-      :ranch.child_spec(:daemon_tcp, 1, :ranch_tcp, listen_options, Tmate.DaemonTcp, []),
+      :ranch.child_spec(:daemon_tcp, 3, :ranch_tcp, daemon_options,
+                        Tmate.DaemonTcp, []),
+      :ranch.child_spec(:websocket_tcp, 3, :ranch_tcp, websocket_options,
+                        :cowboy_protocol, cowboy_opts),
       supervisor(Tmate.SessionRegistery, [[name: Tmate.SessionRegistery]]),
     ]
+
     Supervisor.start_link(children, [strategy: :one_for_one, name: Tmate.Supervisor])
   end
 end

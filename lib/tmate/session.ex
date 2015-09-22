@@ -4,12 +4,12 @@ defmodule Tmate.Session do
   require Logger
 
   def start_link(registery, daemon, opts \\ []) do
-    state = %{registery: registery, daemon: daemon, session_token: nil}
-    GenServer.start_link(__MODULE__, state, opts)
+    GenServer.start_link(__MODULE__, [registery, daemon], opts)
   end
 
-  def init(state) do
-    Process.monitor(state.daemon)
+  def init(registery, daemon) do
+    Process.monitor(daemon)
+    state = %{registery: registery, daemon: daemon}
     {:ok, state}
   end
 
@@ -30,25 +30,32 @@ defmodule Tmate.Session do
                                session_token, _session_token_to]) do
     Logger.metadata([session_token: session_token])
     Logger.info("Session started")
+
     Tmate.SessionRegistery.register_session(state.registery, self, session_token)
-    %{state | session_token: session_token}
+    Map.merge(state, %{session_token: session_token})
   end
 
-  defp receive_ctl_msg(state, [P.tmate_ctl_deamon_out_msg, _time, msg]) do
-    receive_daemon_msg(state, msg)
+  defp receive_ctl_msg(state, [P.tmate_ctl_deamon_out_msg, dmsg]) do
+    state = send_deamon_msg_to_websockets(state, dmsg)
+    receive_daemon_msg(state, dmsg)
   end
 
-  defp receive_ctl_msg(state, [P.tmate_ctl_keyframe | _msg]) do
-    # todo keyframe
+  defp receive_ctl_msg(state, [cmd | _]) do
+    Logger.warn("Unknown message type=#{cmd}")
     state
   end
 
-  defp receive_ctl_msg(state, _) do
-    Logger.warn("Unknown message")
+  defp send_deamon_msg_to_websockets(state, _dmsg) do
     state
+  end
+
+  defp receive_daemon_msg(state, [P.tmate_out_header, protocol_version,
+                                  _client_version_string]) do
+    Map.merge(state, %{daemon_protocol_version: protocol_version})
   end
 
   defp receive_daemon_msg(state, _msg) do
+    # TODO
     state
   end
 

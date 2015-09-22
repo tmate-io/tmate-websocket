@@ -15,6 +15,7 @@ defmodule Tmate.DaemonTcp do
     session = Tmate.SessionRegistery.new_session(Tmate.SessionRegistery, self)
 
     Process.link(session)
+    Logger.info("Accepted daemon connection")
 
     state = %{socket: socket, transport: transport, session: session, mpac_buffer: <<>>}
     :gen_server.enter_loop(__MODULE__, [], state)
@@ -33,6 +34,7 @@ defmodule Tmate.DaemonTcp do
   end
 
   def handle_info({:tcp_closed, _socket}, state) do
+    Logger.info("Closed daemon connection")
     {:stop, :normal, state}
   end
 

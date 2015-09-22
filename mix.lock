@@ -1,4 +1,9 @@
-%{"message_pack": {:hex, :message_pack, "0.2.0"},
+%{"cowboy": {:hex, :cowboy, "1.0.3"},
+  "cowlib": {:hex, :cowlib, "1.0.1"},
+  "message_pack": {:hex, :message_pack, "0.2.0"},
   "msgpack": {:git, "git://github.com/msgpack/msgpack-erlang.git", "c666a5f6568ac2e15687bb155442025dbb8b74ff", []},
   "msgpax": {:hex, :msgpax, "0.8.1"},
+  "phoenix": {:hex, :phoenix, "1.0.2"},
+  "plug": {:hex, :plug, "1.0.2"},
+  "poison": {:hex, :poison, "1.5.0"},
   "ranch": {:hex, :ranch, "1.1.0"}}
