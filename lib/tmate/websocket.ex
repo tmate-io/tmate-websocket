@@ -11,19 +11,27 @@ defmodule Tmate.WebSocket do
     ]}])
   end
 
-  def init({_transport, :http}, _req, _opts) do
-    {:upgrade, :protocol, :cowboy_websocket}
+  require IEx
+  def init({_transport, :http}, req, _opts) do
+    {session_token, req} = Request.binding(:session_token, req)
+    Logger.metadata([session_token: session_token])
+    # TODO Check the request origin
+    case Tmate.SessionRegistery.get_session(Tmate.SessionRegistery, session_token) do
+      {:ok, session} -> {:upgrade, :protocol, :cowboy_websocket, req, %{session: session}}
+      :error -> {:ok, req, [404, [], "Session not found"]}
+    end
   end
 
-  def websocket_init(_transport, req, _opts) do
-    {session_token, req} = Request.binding(:session_token, req)
+  def handle(req, args) do
+    {:ok, req} = apply(Request, :reply, args ++ [req])
+    {:ok, req, :nostate}
+  end
 
-    Logger.metadata([session_token: session_token])
-    Logger.info("Accepted websocket connection")
-
+  def websocket_init(_transport, req, state) do
+    Logger.debug("Accepted websocket connection")
+    Process.monitor(state.session)
     start_ping_timer
-
-    {:ok, req, %{session_token: session_token}}
+    {:ok, req, state}
   end
 
   def websocket_handle({:text, msg}, req, state) do
@@ -38,11 +46,6 @@ defmodule Tmate.WebSocket do
     {:ok, req, state}
   end
 
-  def websocket_handle(data, req, state) do
-    Logger.warn("Unhandled websocket data: #{inspect(data)}")
-    {:ok, req, state}
-  end
-
   defp start_ping_timer() do
     :erlang.start_timer(@ping_interval_sec * 1000, self, :ping)
   end
@@ -51,12 +54,16 @@ defmodule Tmate.WebSocket do
     {:reply, :ping, req, state}
   end
 
-  def websocket_info(_info, req, state) do
-    {:ok, req, state}
+  def websocket_info({:DOWN, _ref, _type, _pid, _info}, req, state) do
+    {:reply, :close, req, state}
   end
 
   def websocket_terminate(_reason, _req, _state) do
-    Logger.info("Closed websocket connection")
+    Logger.debug("Closed websocket connection")
+    :ok
+  end
+
+  def terminate(_reason, _req, _state) do
     :ok
   end
 end

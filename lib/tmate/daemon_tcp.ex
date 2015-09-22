@@ -12,10 +12,10 @@ defmodule Tmate.DaemonTcp do
 
     :ok = :ranch.accept_ack(ref)
     :ok = transport.setopts(socket, [active: :once])
-    session = Tmate.SessionRegistery.new_session(Tmate.SessionRegistery, self)
+    {:ok, session} = Tmate.SessionRegistery.new_session(Tmate.SessionRegistery, self)
 
     Process.link(session)
-    Logger.info("Accepted daemon connection")
+    Logger.debug("Accepted daemon connection")
 
     state = %{socket: socket, transport: transport, session: session, mpac_buffer: <<>>}
     :gen_server.enter_loop(__MODULE__, [], state)
@@ -34,7 +34,7 @@ defmodule Tmate.DaemonTcp do
   end
 
   def handle_info({:tcp_closed, _socket}, state) do
-    Logger.info("Closed daemon connection")
+    Logger.debug("Closed daemon connection")
     {:stop, :normal, state}
   end
 

@@ -27,6 +27,7 @@ defmodule Chat.Mixfile do
     [
       {:ranch, "~> 1.1.0"},
       {:cowboy, "~> 1.0.3"},
+      {:poison, []},
       {:message_pack, "~> 0.2.0"},
     ]
   end

@@ -24,9 +24,8 @@ defmodule Tmate.SessionRegistery do
   end
 
   def handle_call({:new_session, daemon}, _from, state) do
-    args = [self, daemon]
-    {:ok, session} = Tmate.SessionSupervisor.start_session(state.supervisor, args)
-    {:reply, session, state}
+    result = Tmate.SessionSupervisor.start_session(state.supervisor, [daemon])
+    {:reply, result, state}
   end
 
   def handle_call({:register_session, session, session_token}, _from, state) do
@@ -34,8 +33,7 @@ defmodule Tmate.SessionRegistery do
   end
 
   def handle_call({:get_session, session_token}, _from, state) do
-    session = HashDict.fetch(state.tokens_to_sessions, session_token)
-    {:reply, session, state}
+    {:reply, HashDict.fetch(state.tokens_to_sessions, session_token), state}
   end
 
   def handle_info({:DOWN, _ref, _type, pid, _info}, state) do

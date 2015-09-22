@@ -3,14 +3,13 @@ defmodule Tmate.Session do
   use GenServer
   require Logger
 
-  def start_link(registery, daemon, opts \\ []) do
-    GenServer.start_link(__MODULE__, [registery, daemon], opts)
+  def start_link(daemon, opts \\ []) do
+    GenServer.start_link(__MODULE__, daemon, opts)
   end
 
-  def init(registery, daemon) do
+  def init(daemon) do
     Process.monitor(daemon)
-    state = %{registery: registery, daemon: daemon}
-    {:ok, state}
+    {:ok, %{daemon: daemon}}
   end
 
   def handle_info({:DOWN, _ref, _type, _pid, _info}, state) do
@@ -31,7 +30,7 @@ defmodule Tmate.Session do
     Logger.metadata([session_token: session_token])
     Logger.info("Session started")
 
-    Tmate.SessionRegistery.register_session(state.registery, self, session_token)
+    :ok = Tmate.SessionRegistery.register_session(Tmate.SessionRegistery, self, session_token)
     Map.merge(state, %{session_token: session_token})
   end
 
