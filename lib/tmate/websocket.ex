@@ -13,7 +13,6 @@ defmodule Tmate.WebSocket do
 
   require IEx
   def init({_transport, :http}, req, _opts) do
-    Tmate.CodeReloader.Server.reload!
     {session_token, req} = Request.binding(:session_token, req)
     Logger.metadata([session_token: session_token])
 

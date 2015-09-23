@@ -19,14 +19,6 @@ defmodule Tmate do
       worker(Tmate.SessionRegistery, [[name: Tmate.SessionRegistery]]),
     ]
 
-    {:ok, app_options} = Application.fetch_env(:tmate, :app)
-
-    if app_options[:reload_code] do
-      paths = ["lib"]
-      compilers = [:elixir]
-      children = [worker(Tmate.CodeReloader.Server,
-                         [paths, compilers, [name: Tmate.CodeReloader.Server]]) | children]
-    end
     Supervisor.start_link(children, [strategy: :one_for_one, name: Tmate.Supervisor])
   end
 end

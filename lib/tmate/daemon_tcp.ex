@@ -8,7 +8,6 @@ defmodule Tmate.DaemonTcp do
   end
 
   def init(ref, socket, transport, _opts) do
-    Tmate.CodeReloader.Server.reload!
     :ok = :proc_lib.init_ack({:ok, self})
 
     :ok = :ranch.accept_ack(ref)
