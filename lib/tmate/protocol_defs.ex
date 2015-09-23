@@ -20,10 +20,12 @@ defmodule Tmate.ProtocolDefs do
   enum tmate_control_out_msg_types, [
     tmate_ctl_auth,
     tmate_ctl_deamon_out_msg,
+    tmate_ctl_snapshot,
   ]
 
   enum tmate_control_in_msg_types, [
     tmate_ctl_deamon_fwd_msg,
+    tmate_ctl_request_snapshot,
   ]
 
   enum tmate_daemon_out_msg_types, [

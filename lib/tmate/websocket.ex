@@ -16,7 +16,9 @@ defmodule Tmate.WebSocket do
     Tmate.CodeReloader.Server.reload!
     {session_token, req} = Request.binding(:session_token, req)
     Logger.metadata([session_token: session_token])
+
     # TODO Check the request origin
+
     case Tmate.SessionRegistery.get_session(Tmate.SessionRegistery, session_token) do
       {mode, session} -> {:upgrade, :protocol, :cowboy_websocket, req, %{session: session, access_mode: mode}}
       :error -> {:ok, req, [404, [], "Session not found"]}
@@ -31,6 +33,10 @@ defmodule Tmate.WebSocket do
   def websocket_init(_transport, req, state) do
     Logger.debug("Accepted websocket connection (access_mode=#{state.access_mode})")
     Process.monitor(state.session)
+
+    {:ok, wse} = Tmate.WebSocketEvent.start_link(self)
+    :ok = Tmate.Session.ws_request_sub(state.session, wse)
+
     start_ping_timer
     {:ok, req, state}
   end
@@ -59,6 +65,10 @@ defmodule Tmate.WebSocket do
     {:reply, :close, req, state}
   end
 
+  def websocket_info({:send_msg, msg}, req, state) do
+    {:reply, serialize_msg(msg), req, state}
+  end
+
   def websocket_terminate(_reason, _req, _state) do
     Logger.debug("Closed websocket connection")
     :ok
@@ -66,5 +76,9 @@ defmodule Tmate.WebSocket do
 
   def terminate(_reason, _req, _state) do
     :ok
+  end
+
+  defp serialize_msg(msg) do
+    {:text, inspect(msg)}
   end
 end
