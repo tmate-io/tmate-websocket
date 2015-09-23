@@ -1,5 +1,8 @@
 use Mix.Config
 
+config :tmate, :app,
+  reload_code: true
+
 config :tmate, :daemon,
   port: 7000
 
