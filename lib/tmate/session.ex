@@ -26,11 +26,12 @@ defmodule Tmate.Session do
   end
 
   defp receive_ctl_msg(state, [P.tmate_ctl_auth, _protocol_version, _ip_address, _pubkey,
-                               session_token, _session_token_to]) do
+                               session_token, session_token_ro]) do
     Logger.metadata([session_token: session_token])
     Logger.info("Session started")
 
-    :ok = Tmate.SessionRegistery.register_session(Tmate.SessionRegistery, self, session_token)
+    :ok = Tmate.SessionRegistery.register_session(
+            Tmate.SessionRegistery, self, session_token, session_token_ro)
     Map.merge(state, %{session_token: session_token})
   end
 

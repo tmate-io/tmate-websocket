@@ -2,25 +2,32 @@ defmodule Tmate.SessionRegistery do
   use GenServer
   require Logger
 
+  require Record
+  Record.defrecord :session, [:session_token, :session_token_ro, :pid]
+
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, :ok, opts)
   end
 
   def init(:ok) do
     {:ok, supervisor} = Tmate.SessionSupervisor.start_link
-    {:ok, %{supervisor: supervisor, tokens_to_sessions: HashDict.new, sessions_to_tokens: HashDict.new}}
+    {:ok, %{supervisor: supervisor, sessions: []}}
   end
 
   def new_session(registery, daemon) do
     GenServer.call(registery, {:new_session, daemon})
   end
 
-  def register_session(registery, session, session_token) do
-    GenServer.call(registery, {:register_session, session, session_token})
+  def register_session(registery, pid, session_token, session_token_ro) do
+    GenServer.call(registery, {:register_session, pid, session_token, session_token_ro})
   end
 
-  def get_session(registery, session_token) do
-    GenServer.call(registery, {:get_session, session_token})
+  def get_session(registery, token) do
+    GenServer.call(registery, {:get_session, token})
+  end
+
+  defmacrop lookup_session(state, what, token) do
+    quote do: :lists.keyfind(unquote(token), session(unquote(what))+1, unquote(state).sessions)
   end
 
   def handle_call({:new_session, daemon}, _from, state) do
@@ -28,34 +35,45 @@ defmodule Tmate.SessionRegistery do
     {:reply, result, state}
   end
 
-  def handle_call({:register_session, session, session_token}, _from, state) do
-    {:reply, :ok, add_session(state, session, session_token)}
+  def handle_call({:register_session, pid, session_token, session_token_ro}, _from, state) do
+    {:reply, :ok, add_session(state, pid, session_token, session_token_ro)}
   end
 
-  def handle_call({:get_session, session_token}, _from, state) do
-    {:reply, HashDict.fetch(state.tokens_to_sessions, session_token), state}
+  def handle_call({:get_session, token}, _from, state) do
+    # Remove "ro-" prefix, it's just sugar.
+    token = case token do
+      "ro-" <> rest -> rest
+      rest -> rest
+    end
+
+    cond do
+      session = lookup_session(state, :session_token, token) ->
+        {:reply, {:rw, session(session, :pid)}, state}
+      session = lookup_session(state, :session_token_ro, token) ->
+        {:reply, {:ro, session(session, :pid)}, state}
+      true -> {:reply, :error, state}
+    end
+  end
+
+  defp add_session(state, pid, session_token, session_token_ro) do
+    if lookup_session(state, :session_token,    session_token   ) ||
+       lookup_session(state, :session_token,    session_token_ro) ||
+       lookup_session(state, :session_token_ro, session_token_ro) ||
+       lookup_session(state, :session_token_ro, session_token   ) do
+         # This should never happen, but we are never too careful.
+         raise "Session token already registered: #{session_token}"
+    end
+
+    Process.monitor(pid)
+    new_session = session(session_token: session_token, session_token_ro: session_token_ro, pid: pid)
+    %{state | sessions: [new_session | state.sessions]}
   end
 
   def handle_info({:DOWN, _ref, _type, pid, _info}, state) do
     {:noreply, cleanup_session(state, pid)}
   end
 
-  defp add_session(state, session, session_token) do
-    case HashDict.fetch(state.tokens_to_sessions, session_token) do
-      {:ok, _} -> raise "Session already exists: #{session_token}"
-      :error -> # all good
-    end
-
-    ts = HashDict.put(state.tokens_to_sessions, session_token, session)
-    st = HashDict.put(state.sessions_to_tokens, session, session_token)
-    Process.monitor(session)
-    %{state | tokens_to_sessions: ts, sessions_to_tokens: st}
-  end
-
-  defp cleanup_session(state, session) do
-    session_token = HashDict.fetch!(state.sessions_to_tokens, session)
-    ts = HashDict.delete(state.tokens_to_sessions, session_token)
-    st = HashDict.delete(state.sessions_to_tokens, session)
-    %{state | tokens_to_sessions: ts, sessions_to_tokens: st}
+  defp cleanup_session(state, pid) do
+    %{state | sessions: :lists.keydelete(pid, session(:pid)+1, state.sessions)}
   end
 end

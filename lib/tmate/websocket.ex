@@ -17,7 +17,7 @@ defmodule Tmate.WebSocket do
     Logger.metadata([session_token: session_token])
     # TODO Check the request origin
     case Tmate.SessionRegistery.get_session(Tmate.SessionRegistery, session_token) do
-      {:ok, session} -> {:upgrade, :protocol, :cowboy_websocket, req, %{session: session}}
+      {mode, session} -> {:upgrade, :protocol, :cowboy_websocket, req, %{session: session, access_mode: mode}}
       :error -> {:ok, req, [404, [], "Session not found"]}
     end
   end
@@ -28,7 +28,7 @@ defmodule Tmate.WebSocket do
   end
 
   def websocket_init(_transport, req, state) do
-    Logger.debug("Accepted websocket connection")
+    Logger.debug("Accepted websocket connection (access_mode=#{state.access_mode})")
     Process.monitor(state.session)
     start_ping_timer
     {:ok, req, state}
