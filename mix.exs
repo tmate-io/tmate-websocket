@@ -1,4 +1,4 @@
-defmodule Chat.Mixfile do
+defmodule Tmate.Mixfile do
   use Mix.Project
 
   def project do

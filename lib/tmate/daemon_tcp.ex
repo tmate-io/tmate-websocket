@@ -42,7 +42,7 @@ defmodule Tmate.DaemonTcp do
   defp receive_data(state, data) do
     case MessagePack.unpack_once(data) do
       {:ok, {msg, rest}} ->
-        :ok = Tmate.Session.handle_daemon_msg(state.session, msg)
+        :ok = Tmate.Session.notify_daemon_msg(state.session, msg)
         receive_data(state, rest)
       {:error, :incomplete} ->
         {:ok, %{state | mpac_buffer: data}}
