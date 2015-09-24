@@ -60,8 +60,8 @@ defmodule Tmate.WebSocket do
     {:ok, req, state}
   end
 
-  def websocket_handle({:text, msg}, req, state) do
-    handle_ws_msg(state, Poison.decode!(msg))
+  def websocket_handle({:binary, msg}, req, state) do
+    handle_ws_msg(state, deserialize_msg!(msg))
     {:ok, req, state}
   end
 
@@ -89,7 +89,7 @@ defmodule Tmate.WebSocket do
   end
 
   def handle_sync_call({:send_msg, msg}, _from, req, state) do
-    {:reply, :ok, {:reply, serialize_msg(msg), req, state}}
+    {:reply, :ok, {:reply, serialize_msg!(msg), req, state}}
   end
 
   def websocket_terminate(_reason, _req, _state) do
@@ -110,7 +110,11 @@ defmodule Tmate.WebSocket do
     Logger.warn("Unknown ws msg: #{msg}")
   end
 
-  defp serialize_msg(msg) do
-    {:text, Poison.encode_to_iodata!(msg)}
+  defp serialize_msg!(msg) do
+    {:binary, MessagePack.pack!(msg, enable_string: true)}
+  end
+
+  defp deserialize_msg!(msg) do
+    MessagePack.unpack!(msg)
   end
 end
