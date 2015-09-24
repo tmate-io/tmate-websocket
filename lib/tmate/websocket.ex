@@ -1,5 +1,6 @@
 defmodule Tmate.WebSocket do
   require Logger
+  require Tmate.ProtocolDefs, as: P
 
   alias :cowboy_req, as: Request
 
@@ -60,10 +61,8 @@ defmodule Tmate.WebSocket do
   end
 
   def websocket_handle({:text, msg}, req, state) do
-    case msg do
-      "exit" -> {:reply, :close, req, state}
-      _ ->      {:reply, {:text, "you said: #{msg}"}, req, state}
-    end
+    handle_ws_msg(state, Poison.decode!(msg))
+    {:ok, req, state}
   end
 
   def websocket_handle({:pong, _}, req, state) do
@@ -100,6 +99,15 @@ defmodule Tmate.WebSocket do
 
   def terminate(_reason, _req, _state) do
     :ok
+  end
+
+  # TODO validate types
+  defp handle_ws_msg(state, [P.tmate_ws_pane_keys, pane_id, data]) do
+    :ok = Tmate.Session.send_pane_keys(state.session, pane_id, data)
+  end
+
+  defp handle_ws_msg(_state, msg) do
+    Logger.warn("Unknown ws msg: #{msg}")
   end
 
   defp serialize_msg(msg) do

@@ -17,6 +17,15 @@ defmodule Tmate.ProtocolDefs do
 
   define tmate_max_message_size, (17*1024)
 
+  enum tmate_ws_out_msg_types, [
+    tmate_ws_daemon_out_msg,
+    tmate_ws_snapshot,
+  ]
+
+  enum tmate_ws_in_msg_types, [
+    tmate_ws_pane_keys,
+  ]
+
   enum tmate_control_out_msg_types, [
     tmate_ctl_auth,
     tmate_ctl_deamon_out_msg,
@@ -26,6 +35,7 @@ defmodule Tmate.ProtocolDefs do
   enum tmate_control_in_msg_types, [
     tmate_ctl_deamon_fwd_msg,
     tmate_ctl_request_snapshot,
+    tmate_ctl_pane_keys,
   ]
 
   enum tmate_daemon_out_msg_types, [

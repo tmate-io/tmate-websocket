@@ -31,12 +31,21 @@ defmodule Tmate.Session do
     GenServer.call(session, {:ws_request_sub, ws})
   end
 
+  def send_pane_keys(session, pane_id, data) do
+    GenServer.call(session, {:send_pane_keys, pane_id, data})
+  end
+
   def handle_call({:ws_request_sub, ws}, _from, state) do
     # We'll queue up the subscribers until we get the snapshot
     # so they can get a consistent stream.
     send_daemon_msg(state, [P.tmate_ctl_request_snapshot])
     Process.monitor(ws)
     {:reply, :ok, %{state | pending_ws_subs: [ws | state.pending_ws_subs]}}
+  end
+
+  def handle_call({:send_pane_keys, pane_id, data}, _from, state) do
+    send_daemon_msg(state, [P.tmate_ctl_pane_keys, pane_id, data])
+    {:reply, :ok, state}
   end
 
   def handle_call({:notify_daemon_msg, msg}, _from, state) do
@@ -53,16 +62,16 @@ defmodule Tmate.Session do
     Map.merge(state, %{session_token: session_token})
   end
 
-  defp handle_ctl_msg(state, msg = [P.tmate_ctl_deamon_out_msg, dmsg]) do
-    for ws <- state.ws_subs, do: send_ws_msg(ws, msg)
+  defp handle_ctl_msg(state, [P.tmate_ctl_deamon_out_msg, dmsg]) do
+    # TODO serialize once, and then send to all clients.
+    for ws <- state.ws_subs, do: send_ws_msg(ws, [P.tmate_ws_daemon_out_msg, dmsg])
     handle_daemon_msg(state, dmsg)
   end
 
   defp handle_ctl_msg(state, snapshot_msg = [P.tmate_ctl_snapshot | _]) do
-    layout_msg = [P.tmate_ctl_deamon_out_msg, [P.tmate_out_sync_layout, state.current_layout]]
     for ws <- state.pending_ws_subs do
-      send_ws_msg(ws, layout_msg)
-      send_ws_msg(ws, snapshot_msg)
+      send_ws_msg(ws, [P.tmate_ws_daemon_out_msg, [P.tmate_out_sync_layout | state.current_layout]])
+      send_ws_msg(ws, [P.tmate_ws_snapshot, snapshot_msg])
     end
     %{state | pending_ws_subs: [], ws_subs: state.ws_subs ++ state.pending_ws_subs}
   end
