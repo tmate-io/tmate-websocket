@@ -39,7 +39,7 @@ defmodule Tmate.WebSocket do
         ret
       {:DOWN, ^ref, _type, ^ws, _info} -> {:error, :noproc}
     after
-      5000 -> {:error, :timeout}
+      1000 -> {:error, :timeout}
     end
   end
 

@@ -96,6 +96,9 @@ defmodule Tmate.Session do
   end
 
   defp send_ws_msg(ws, msg) do
+    # TODO we'll need a better buffering strategy.
+    # For now the websocket timeout is set to 1000 to avoid
+    # problems with having the daemon being slow
     case Tmate.WebSocket.send_msg(ws, msg) do
       :ok -> :ok
       {:error, :timeout} ->
