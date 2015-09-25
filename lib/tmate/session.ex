@@ -3,6 +3,8 @@ defmodule Tmate.Session do
   use GenServer
   require Logger
 
+  @max_snapshot_lines 1000
+
   def start_link(daemon, opts \\ []) do
     GenServer.start_link(__MODULE__, daemon, opts)
   end
@@ -38,7 +40,7 @@ defmodule Tmate.Session do
   def handle_call({:ws_request_sub, ws}, _from, state) do
     # We'll queue up the subscribers until we get the snapshot
     # so they can get a consistent stream.
-    send_daemon_msg(state, [P.tmate_ctl_request_snapshot])
+    send_daemon_msg(state, [P.tmate_ctl_request_snapshot, @max_snapshot_lines])
     Process.monitor(ws)
     {:reply, :ok, %{state | pending_ws_subs: [ws | state.pending_ws_subs]}}
   end
@@ -68,10 +70,10 @@ defmodule Tmate.Session do
     handle_daemon_msg(state, dmsg)
   end
 
-  defp handle_ctl_msg(state, snapshot_msg = [P.tmate_ctl_snapshot | _]) do
+  defp handle_ctl_msg(state, [P.tmate_ctl_snapshot, smsg]) do
     for ws <- state.pending_ws_subs do
       send_ws_msg(ws, [P.tmate_ws_daemon_out_msg, [P.tmate_out_sync_layout | state.current_layout]])
-      send_ws_msg(ws, [P.tmate_ws_snapshot, snapshot_msg])
+      send_ws_msg(ws, [P.tmate_ws_snapshot, smsg])
     end
     %{state | pending_ws_subs: [], ws_subs: state.ws_subs ++ state.pending_ws_subs}
   end
