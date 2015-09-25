@@ -60,8 +60,12 @@ defmodule Tmate.WebSocket do
     {:ok, req, state}
   end
 
-  def websocket_handle({:binary, msg}, req, state) do
+  def websocket_handle({:binary, msg}, req, %{access_mode: :rw} = state) do
     handle_ws_msg(state, deserialize_msg!(msg))
+    {:ok, req, state}
+  end
+
+  def websocket_handle({:binary, _msg}, req, state) do
     {:ok, req, state}
   end
 
