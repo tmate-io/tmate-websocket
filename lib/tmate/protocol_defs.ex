@@ -24,6 +24,7 @@ defmodule Tmate.ProtocolDefs do
 
   enum tmate_ws_in_msg_types, [
     tmate_ws_pane_keys,
+    tmate_ws_exec_cmd,
   ]
 
   enum tmate_control_out_msg_types, [

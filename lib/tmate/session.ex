@@ -37,6 +37,10 @@ defmodule Tmate.Session do
     GenServer.call(session, {:send_pane_keys, pane_id, data})
   end
 
+  def send_exec_cmd(session, client_id, cmd) do
+    GenServer.call(session, {:send_exec_cmd, client_id, cmd})
+  end
+
   def handle_call({:ws_request_sub, ws}, _from, state) do
     # We'll queue up the subscribers until we get the snapshot
     # so they can get a consistent stream.
@@ -47,6 +51,13 @@ defmodule Tmate.Session do
 
   def handle_call({:send_pane_keys, pane_id, data}, _from, state) do
     send_daemon_msg(state, [P.tmate_ctl_pane_keys, pane_id, data])
+    {:reply, :ok, state}
+  end
+
+  def handle_call({:send_exec_cmd, client_id, cmd}, _from, state) do
+    Logger.debug("Sending exec: #{cmd}")
+    send_daemon_msg(state, [P.tmate_ctl_deamon_fwd_msg,
+                             [P.tmate_in_exec_cmd, client_id, cmd]])
     {:reply, :ok, state}
   end
 

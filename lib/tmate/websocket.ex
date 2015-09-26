@@ -110,6 +110,10 @@ defmodule Tmate.WebSocket do
     :ok = Tmate.Session.send_pane_keys(state.session, pane_id, data)
   end
 
+  defp handle_ws_msg(state, [P.tmate_ws_exec_cmd, cmd]) do
+    :ok = Tmate.Session.send_exec_cmd(state.session, 0, cmd)
+  end
+
   defp handle_ws_msg(_state, msg) do
     Logger.warn("Unknown ws msg: #{msg}")
   end
