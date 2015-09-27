@@ -70,8 +70,8 @@ defmodule Tmate.Session do
     Logger.metadata([session_token: session_token])
     Logger.info("Session started")
 
-    :ok = Tmate.SessionRegistery.register_session(
-            Tmate.SessionRegistery, self, session_token, session_token_ro)
+    :ok = Tmate.SessionRegistry.register_session(
+            Tmate.SessionRegistry, self, session_token, session_token_ro)
     Map.merge(state, %{session_token: session_token})
   end
 

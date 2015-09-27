@@ -1,4 +1,4 @@
-defmodule Tmate.SessionRegistery do
+defmodule Tmate.SessionRegistry do
   use GenServer
   require Logger
 
@@ -14,16 +14,16 @@ defmodule Tmate.SessionRegistery do
     {:ok, %{supervisor: supervisor, sessions: []}}
   end
 
-  def new_session(registery, daemon) do
-    GenServer.call(registery, {:new_session, daemon})
+  def new_session(registry, daemon) do
+    GenServer.call(registry, {:new_session, daemon})
   end
 
-  def register_session(registery, pid, session_token, session_token_ro) do
-    GenServer.call(registery, {:register_session, pid, session_token, session_token_ro})
+  def register_session(registry, pid, session_token, session_token_ro) do
+    GenServer.call(registry, {:register_session, pid, session_token, session_token_ro})
   end
 
-  def get_session(registery, token) do
-    GenServer.call(registery, {:get_session, token})
+  def get_session(registry, token) do
+    GenServer.call(registry, {:get_session, token})
   end
 
   defmacrop lookup_session(state, what, token) do

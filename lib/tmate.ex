@@ -16,7 +16,7 @@ defmodule Tmate do
                         Tmate.DaemonTcp, []),
       :ranch.child_spec(:websocket_tcp, 3, :ranch_tcp, websocket_options,
                         :cowboy_protocol, cowboy_opts),
-      worker(Tmate.SessionRegistery, [[name: Tmate.SessionRegistery]]),
+      worker(Tmate.SessionRegistry, [[name: Tmate.SessionRegistry]]),
     ]
 
     Supervisor.start_link(children, [strategy: :one_for_one, name: Tmate.Supervisor])

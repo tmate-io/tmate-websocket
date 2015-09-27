@@ -12,7 +12,7 @@ defmodule Tmate.DaemonTcp do
 
     :ok = :ranch.accept_ack(ref)
     :ok = transport.setopts(socket, [active: :once])
-    {:ok, session} = Tmate.SessionRegistery.new_session(Tmate.SessionRegistery, self)
+    {:ok, session} = Tmate.SessionRegistry.new_session(Tmate.SessionRegistry, self)
 
     Process.link(session)
     Logger.debug("Accepted daemon connection")

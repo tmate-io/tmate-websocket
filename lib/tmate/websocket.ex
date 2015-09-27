@@ -19,7 +19,7 @@ defmodule Tmate.WebSocket do
 
     # TODO Check the request origin
 
-    case Tmate.SessionRegistery.get_session(Tmate.SessionRegistery, session_token) do
+    case Tmate.SessionRegistry.get_session(Tmate.SessionRegistry, session_token) do
       {mode, session} -> {:upgrade, :protocol, :cowboy_websocket, req, %{session: session, access_mode: mode}}
       :error -> {:ok, req, [404, [], "Session not found"]}
     end
