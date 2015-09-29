@@ -104,11 +104,12 @@ defmodule Tmate.WebSocket do
   end
 
   # TODO validate types
-  defp handle_ws_msg(state, [P.tmate_ws_pane_keys, pane_id, data]) do
+  defp handle_ws_msg(state, [P.tmate_ws_pane_keys, pane_id, data])
+      when is_number(pane_id) and pane_id >= 0 and is_binary(data) do
     :ok = Tmate.Session.send_pane_keys(state.session, pane_id, data)
   end
 
-  defp handle_ws_msg(state, [P.tmate_ws_exec_cmd, cmd]) do
+  defp handle_ws_msg(state, [P.tmate_ws_exec_cmd, cmd]) when is_binary(cmd) do
     :ok = Tmate.Session.send_exec_cmd(state.session, 0, cmd)
   end
 
