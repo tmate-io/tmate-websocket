@@ -6,7 +6,7 @@ defmodule Tmate.Session do
   require Logger
 
 
-  @max_snapshot_lines 1000
+  @max_snapshot_lines 300
 
   def start_link(daemon, opts \\ []) do
     GenServer.start_link(__MODULE__, daemon, opts)
