@@ -15,15 +15,15 @@ defmodule Tmate.SessionRegistry do
   end
 
   def new_session(registry, daemon) do
-    GenServer.call(registry, {:new_session, daemon})
+    GenServer.call(registry, {:new_session, daemon}, :infinity)
   end
 
   def register_session(registry, pid, session_token, session_token_ro) do
-    GenServer.call(registry, {:register_session, pid, session_token, session_token_ro})
+    GenServer.call(registry, {:register_session, pid, session_token, session_token_ro}, :infinity)
   end
 
   def get_session(registry, token) do
-    GenServer.call(registry, {:get_session, token})
+    GenServer.call(registry, {:get_session, token}, :infinity)
   end
 
   defmacrop lookup_session(state, what, token) do

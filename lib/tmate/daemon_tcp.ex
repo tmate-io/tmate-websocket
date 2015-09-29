@@ -12,13 +12,18 @@ defmodule Tmate.DaemonTcp do
 
     :ok = :ranch.accept_ack(ref)
     :ok = transport.setopts(socket, [active: :once])
-    {:ok, session} = Tmate.SessionRegistry.new_session(Tmate.SessionRegistry, self)
+    {:ok, session} = Tmate.SessionRegistry.new_session(Tmate.SessionRegistry,
+                      {self, socket, transport})
 
     Process.link(session)
     Logger.debug("Accepted daemon connection")
 
     state = %{socket: socket, transport: transport, session: session, mpac_buffer: <<>>}
     :gen_server.enter_loop(__MODULE__, [], state)
+  end
+
+  def daemon_pid({pid, _, _}) do
+    pid
   end
 
   def handle_info({:tcp, socket, data},
@@ -48,14 +53,8 @@ defmodule Tmate.DaemonTcp do
     end
   end
 
-  def send_msg(daemon, msg) do
-    # Synchronous to avoid overflowing the queues
-    GenServer.call(daemon, {:send_msg, msg})
-  end
-
-  def handle_call({:send_msg, msg}, _from, state) do
+  def send_msg({_pid, socket, transport}, msg) do
     {:ok, data} = MessagePack.pack(msg)
-    :ok = state.transport.send(state.socket, data)
-    {:reply, :ok, state}
+    transport.send(socket, data)
   end
 end

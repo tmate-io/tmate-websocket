@@ -38,8 +38,6 @@ defmodule Tmate.WebSocket do
         Process.demonitor(ref, [:flush])
         ret
       {:DOWN, ^ref, _type, ^ws, _info} -> {:error, :noproc}
-    after
-      1000 -> {:error, :timeout}
     end
   end
 

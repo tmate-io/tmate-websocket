@@ -1,7 +1,10 @@
 defmodule Tmate.Session do
   require Tmate.ProtocolDefs, as: P
+  alias Tmate.DaemonTcp, as: Daemon
+
   use GenServer
   require Logger
+
 
   @max_snapshot_lines 1000
 
@@ -10,13 +13,13 @@ defmodule Tmate.Session do
   end
 
   def init(daemon) do
-    Process.monitor(daemon)
+    Process.monitor(Daemon.daemon_pid(daemon))
     {:ok, %{daemon: daemon, pending_ws_subs: [], ws_subs: [],
             daemon_protocol_version: -1, current_layout: []}}
   end
 
   def handle_info({:DOWN, _ref, _type, pid, _info}, state) do
-    if state.daemon == pid do
+    if Daemon.daemon_pid(state.daemon) == pid do
         Logger.info("Session finished")
         {:stop, :normal, state}
     else
@@ -26,19 +29,19 @@ defmodule Tmate.Session do
   end
 
   def notify_daemon_msg(session, msg) do
-    GenServer.call(session, {:notify_daemon_msg, msg})
+    GenServer.call(session, {:notify_daemon_msg, msg}, :infinity)
   end
 
   def ws_request_sub(session, ws) do
-    GenServer.call(session, {:ws_request_sub, ws})
+    GenServer.call(session, {:ws_request_sub, ws}, :infinity)
   end
 
   def send_pane_keys(session, pane_id, data) do
-    GenServer.call(session, {:send_pane_keys, pane_id, data})
+    GenServer.call(session, {:send_pane_keys, pane_id, data}, :infinity)
   end
 
   def send_exec_cmd(session, client_id, cmd) do
-    GenServer.call(session, {:send_exec_cmd, client_id, cmd})
+    GenServer.call(session, {:send_exec_cmd, client_id, cmd}, :infinity)
   end
 
   def handle_call({:ws_request_sub, ws}, _from, state) do
@@ -109,16 +112,8 @@ defmodule Tmate.Session do
   end
 
   defp send_ws_msg(ws, msg) do
-    # TODO we'll need a better buffering strategy.
-    # For now the websocket timeout is set to 1000 to avoid
-    # problems with having the daemon being slow
-    case Tmate.WebSocket.send_msg(ws, msg) do
-      :ok -> :ok
-      {:error, :timeout} ->
-        :erlang.exit(ws, :kill)
-        Logger.error("websocket is taking too long. killing")
-      {:error, :noproc} ->
-    end
+    # TODO we'll need a better buffering strategy than blocking forever.
+    Tmate.WebSocket.send_msg(ws, msg)
   end
 
   defp send_daemon_msg(state, msg) do
