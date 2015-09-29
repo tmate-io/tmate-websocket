@@ -30,19 +30,8 @@ defmodule Tmate.WebSocket do
     {:ok, req, :nostate}
   end
 
-  defp do_sync_call(ws, args) do
-    ref = Process.monitor(ws)
-    send ws, {:do_ws_sync_call, args, self, ref}
-    receive do
-      {:sync_ws_call_reply, ^ref, ret} ->
-        Process.demonitor(ref, [:flush])
-        ret
-      {:DOWN, ^ref, _type, ^ws, _info} -> {:error, :noproc}
-    end
-  end
-
   def send_msg(ws, msg) do
-    do_sync_call(ws, {:send_msg, msg})
+    send(ws, {:send_msg, msg})
   end
 
   def websocket_init(_transport, req, state) do
@@ -84,14 +73,8 @@ defmodule Tmate.WebSocket do
     {:reply, :close, req, state}
   end
 
-  def websocket_info({:do_ws_sync_call, args, from, ref}, req, state) do
-    {:reply, call_ret, ws_ret} = handle_sync_call(args, from, req, state)
-    send from, {:sync_ws_call_reply, ref, call_ret}
-    ws_ret
-  end
-
-  def handle_sync_call({:send_msg, msg}, _from, req, state) do
-    {:reply, :ok, {:reply, serialize_msg!(msg), req, state}}
+  def websocket_info({:send_msg, msg}, req, state) do
+     {:reply, serialize_msg!(msg), req, state}
   end
 
   def websocket_terminate(_reason, _req, _state) do
