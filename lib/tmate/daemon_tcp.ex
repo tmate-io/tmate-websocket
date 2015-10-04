@@ -44,7 +44,7 @@ defmodule Tmate.DaemonTcp do
   end
 
   defp receive_data(state, data) do
-    case MessagePack.unpack_once(data) do
+    case MessagePack.unpack_once(data, enable_string: true) do
       {:ok, {msg, rest}} ->
         :ok = Tmate.Session.notify_daemon_msg(state.session, msg)
         receive_data(state, rest)
@@ -57,7 +57,7 @@ defmodule Tmate.DaemonTcp do
     # no need to go through the daemon process.
     # the caller process is linked to the daemon process anyways,
     # and the serialization doesn't need to be offloaded.
-    {:ok, data} = MessagePack.pack(msg)
+    {:ok, data} = MessagePack.pack(msg, enable_string: true)
     transport.send(socket, data)
   end
 end
