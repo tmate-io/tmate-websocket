@@ -15,14 +15,15 @@ defmodule Tmate.Session do
   def init(daemon) do
     Process.monitor(Daemon.daemon_pid(daemon))
     {:ok, %{daemon: daemon, pending_ws_subs: [], ws_subs: [],
-            daemon_protocol_version: -1, current_layout: []}}
+            daemon_protocol_version: -1, current_layout: [],
+            clients: HashDict.new}}
   end
 
   def handle_info({:DOWN, _ref, _type, pid, _info}, state) do
     if Daemon.daemon_pid(state.daemon) == pid do
-        Logger.info("Session finished")
         {:stop, :normal, state}
     else
+      state = client_left(state, pid)
       {:noreply, %{state | pending_ws_subs: state.pending_ws_subs -- [pid],
                            ws_subs: state.ws_subs -- [pid]}}
     end
@@ -32,8 +33,8 @@ defmodule Tmate.Session do
     GenServer.call(session, {:notify_daemon_msg, msg}, :infinity)
   end
 
-  def ws_request_sub(session, ws) do
-    GenServer.call(session, {:ws_request_sub, ws}, :infinity)
+  def ws_request_sub(session, ws, client_info) do
+    GenServer.call(session, {:ws_request_sub, ws, client_info}, :infinity)
   end
 
   def send_pane_keys(session, pane_id, data) do
@@ -44,12 +45,17 @@ defmodule Tmate.Session do
     GenServer.call(session, {:send_exec_cmd, client_id, cmd}, :infinity)
   end
 
-  def handle_call({:ws_request_sub, ws}, _from, state) do
+  def notify_resize(session, max_cols, max_rows) do
+    GenServer.call(session, {:notify_resize, max_cols, max_rows}, :infinity)
+  end
+
+  def handle_call({:ws_request_sub, ws, client_info}, _from, state) do
     # We'll queue up the subscribers until we get the snapshot
     # so they can get a consistent stream.
-    send_daemon_msg(state, [P.tmate_ctl_request_snapshot, @max_snapshot_lines])
+    state = client_joined(state, ws, client_info)
     Process.monitor(ws)
-    {:reply, :ok, %{state | pending_ws_subs: [ws | state.pending_ws_subs]}}
+    send_daemon_msg(state, [P.tmate_ctl_request_snapshot, @max_snapshot_lines])
+    {:reply, :ok, %{state | pending_ws_subs: state.pending_ws_subs ++ [ws]}}
   end
 
   def handle_call({:send_pane_keys, pane_id, data}, _from, state) do
@@ -61,6 +67,11 @@ defmodule Tmate.Session do
     Logger.debug("Sending exec: #{cmd}")
     send_daemon_msg(state, [P.tmate_ctl_deamon_fwd_msg,
                              [P.tmate_in_exec_cmd, client_id, cmd]])
+    {:reply, :ok, state}
+  end
+
+  def handle_call({:notify_resize, max_cols, max_rows}, from, state) do
+    # TODO
     {:reply, :ok, state}
   end
 
@@ -93,6 +104,14 @@ defmodule Tmate.Session do
     %{state | pending_ws_subs: [], ws_subs: state.ws_subs ++ state.pending_ws_subs}
   end
 
+  defp handle_ctl_msg(state, [P.tmate_ctl_client_join, client_id, ip_address, pubkey]) do
+    client_joined(state, client_id, [ip_address: ip_address, pubkey: pubkey])
+  end
+
+  defp handle_ctl_msg(state, [P.tmate_ctl_client_left, client_id]) do
+    client_left(state, client_id)
+  end
+
   defp handle_ctl_msg(state, [cmd | _]) do
     Logger.warn("Unknown message type=#{cmd}")
     state
@@ -122,5 +141,31 @@ defmodule Tmate.Session do
 
   defp send_daemon_msg(state, msg) do
     Tmate.DaemonTcp.send_msg(state.daemon, msg)
+  end
+
+  defp notify_daemon(state, msg) do
+    send_daemon_msg(state, [P.tmate_ctl_deamon_fwd_msg,
+                             [P.tmate_in_notify, msg]])
+  end
+
+  defp client_joined(state, id, client_info) do
+    state = %{state | clients: HashDict.put(state.clients, id, client_info)}
+    notify_clients_change(state, client_info, true)
+    state
+  end
+
+  defp client_left(state, id) do
+    client_info = HashDict.fetch!(state.clients, id)
+    state = %{state | clients: HashDict.delete(state.clients, id)}
+    notify_clients_change(state, client_info, false)
+    state
+  end
+
+  defp notify_clients_change(state, client_info, join) do
+    verb = if join, do: 'joined', else: 'left'
+    num_clients = HashDict.size(state.clients)
+    msg = "A mate has #{verb} (#{client_info[:ip_address]}) -- " <>
+          "#{num_clients} client#{if num_clients > 1, do: 's'} currently connected"
+    notify_daemon(state, msg)
   end
 end

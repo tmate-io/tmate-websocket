@@ -25,12 +25,15 @@ defmodule Tmate.ProtocolDefs do
   enum tmate_ws_in_msg_types, [
     tmate_ws_pane_keys,
     tmate_ws_exec_cmd,
+    tmate_ws_resize,
   ]
 
   enum tmate_control_out_msg_types, [
     tmate_ctl_auth,
     tmate_ctl_deamon_out_msg,
     tmate_ctl_snapshot,
+    tmate_ctl_client_join,
+    tmate_ctl_client_left,
   ]
 
   enum tmate_control_in_msg_types, [

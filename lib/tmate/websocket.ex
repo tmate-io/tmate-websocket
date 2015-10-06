@@ -41,7 +41,7 @@ defmodule Tmate.WebSocket do
 
     Process.monitor(state.session)
 
-    :ok = Tmate.Session.ws_request_sub(state.session, self)
+    :ok = Tmate.Session.ws_request_sub(state.session, self, [ip_address: ip])
 
     start_ping_timer
     {:ok, req, state}
@@ -88,7 +88,7 @@ defmodule Tmate.WebSocket do
 
   # TODO validate types
   defp handle_ws_msg(state, [P.tmate_ws_pane_keys, pane_id, data])
-      when is_number(pane_id) and pane_id >= 0 and is_binary(data) do
+      when is_integer(pane_id) and pane_id >= 0 and is_binary(data) do
     :ok = Tmate.Session.send_pane_keys(state.session, pane_id, data)
   end
 
@@ -96,8 +96,15 @@ defmodule Tmate.WebSocket do
     :ok = Tmate.Session.send_exec_cmd(state.session, 0, cmd)
   end
 
+  defp handle_ws_msg(state, [P.tmate_ws_resize, max_cols, max_rows])
+      when is_integer(max_cols) and max_cols >= 0 and
+           is_integer(max_rows) and max_rows >= 0 do
+    :ok = Tmate.Session.notify_resize(state.session, max_cols, max_rows)
+  end
+
+
   defp handle_ws_msg(_state, msg) do
-    Logger.warn("Unknown ws msg: #{msg}")
+    Logger.warn("Unknown ws msg: #{inspect(msg)}")
   end
 
   defp serialize_msg!(msg) do
