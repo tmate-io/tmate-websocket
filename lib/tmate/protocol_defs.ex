@@ -40,6 +40,7 @@ defmodule Tmate.ProtocolDefs do
     tmate_ctl_deamon_fwd_msg,
     tmate_ctl_request_snapshot,
     tmate_ctl_pane_keys,
+    tmate_ctl_resize,
   ]
 
   enum tmate_daemon_out_msg_types, [

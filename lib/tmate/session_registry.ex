@@ -14,8 +14,8 @@ defmodule Tmate.SessionRegistry do
     {:ok, %{supervisor: supervisor, sessions: []}}
   end
 
-  def new_session(registry, daemon) do
-    GenServer.call(registry, {:new_session, daemon}, :infinity)
+  def new_session(registry, args) do
+    GenServer.call(registry, {:new_session, args}, :infinity)
   end
 
   def register_session(registry, pid, session_token, session_token_ro) do
@@ -30,8 +30,8 @@ defmodule Tmate.SessionRegistry do
     quote do: :lists.keyfind(unquote(token), session(unquote(what))+1, unquote(state).sessions)
   end
 
-  def handle_call({:new_session, daemon}, _from, state) do
-    result = Tmate.SessionSupervisor.start_session(state.supervisor, [daemon])
+  def handle_call({:new_session, args}, _from, state) do
+    result = Tmate.SessionSupervisor.start_session(state.supervisor, args)
     {:reply, result, state}
   end
 

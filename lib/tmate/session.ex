@@ -1,6 +1,5 @@
 defmodule Tmate.Session do
   require Tmate.ProtocolDefs, as: P
-  alias Tmate.DaemonTcp, as: Daemon
 
   use GenServer
   require Logger
@@ -8,24 +7,23 @@ defmodule Tmate.Session do
 
   @max_snapshot_lines 300
 
-  def start_link(daemon, opts \\ []) do
-    GenServer.start_link(__MODULE__, daemon, opts)
+  def start_link(daemon_transport, daemon, opts \\ []) do
+    GenServer.start_link(__MODULE__, {daemon_transport, daemon}, opts)
   end
 
-  def init(daemon) do
-    Process.monitor(Daemon.daemon_pid(daemon))
-    {:ok, %{daemon: daemon, pending_ws_subs: [], ws_subs: [],
+  def init({daemon_transport, daemon}) do
+    Process.monitor(daemon_transport.daemon_pid(daemon))
+    {:ok, %{daemon_transport: daemon_transport, daemon: daemon,
+            pending_ws_subs: [], ws_subs: [],
             daemon_protocol_version: -1, current_layout: [],
             clients: HashDict.new}}
   end
 
   def handle_info({:DOWN, _ref, _type, pid, _info}, state) do
-    if Daemon.daemon_pid(state.daemon) == pid do
-        {:stop, :normal, state}
+    if state.daemon_transport.daemon_pid(state.daemon) == pid do
+      {:stop, :normal, state}
     else
-      state = client_left(state, pid)
-      {:noreply, %{state | pending_ws_subs: state.pending_ws_subs -- [pid],
-                           ws_subs: state.ws_subs -- [pid]}}
+      {:noreply, handle_ws_disconnect(state, pid)}
     end
   end
 
@@ -45,8 +43,8 @@ defmodule Tmate.Session do
     GenServer.call(session, {:send_exec_cmd, client_id, cmd}, :infinity)
   end
 
-  def notify_resize(session, max_cols, max_rows) do
-    GenServer.call(session, {:notify_resize, max_cols, max_rows}, :infinity)
+  def notify_resize(session, ws, size) do
+    GenServer.call(session, {:notify_resize, ws, size}, :infinity)
   end
 
   def handle_call({:ws_request_sub, ws, client_info}, _from, state) do
@@ -70,9 +68,8 @@ defmodule Tmate.Session do
     {:reply, :ok, state}
   end
 
-  def handle_call({:notify_resize, max_cols, max_rows}, from, state) do
-    # TODO
-    {:reply, :ok, state}
+  def handle_call({:notify_resize, ws, size}, _from, state) do
+    {:reply, :ok, update_client_size(state, ws, size)}
   end
 
   def handle_call({:notify_daemon_msg, msg}, _from, state) do
@@ -131,6 +128,13 @@ defmodule Tmate.Session do
     state
   end
 
+  defp handle_ws_disconnect(state, ws) do
+    state = client_left(state, ws)
+    recalculate_sizes(state)
+    %{state | pending_ws_subs: state.pending_ws_subs -- [ws],
+              ws_subs: state.ws_subs -- [ws]}
+  end
+
   defp ws_broadcast_msg(ws_list, msg) do
     # TODO we'll need a better buffering strategy
     # Right now we are sending async messages, with no back pressure.
@@ -140,7 +144,7 @@ defmodule Tmate.Session do
   end
 
   defp send_daemon_msg(state, msg) do
-    Tmate.DaemonTcp.send_msg(state.daemon, msg)
+    state.daemon_transport.send_msg(state.daemon, msg)
   end
 
   defp notify_daemon(state, msg) do
@@ -167,5 +171,27 @@ defmodule Tmate.Session do
     msg = "A mate has #{verb} (#{client_info[:ip_address]}) -- " <>
           "#{num_clients} client#{if num_clients > 1, do: 's'} currently connected"
     notify_daemon(state, msg)
+  end
+
+  defp update_client_size(state, ws, size) do
+    client_info =
+      HashDict.fetch!(state.clients, ws)
+      |> Keyword.put(:size, size)
+
+    state = %{state | clients: HashDict.put(state.clients, ws, client_info)}
+    recalculate_sizes(state)
+    state
+  end
+
+  defp recalculate_sizes(state) do
+    {max_cols, max_rows} = if Enum.empty?(state.clients) do
+      {-1,-1}
+    else
+      state.clients
+        |> HashDict.values
+        |> Enum.filter_map(& &1[:size], & &1[:size])
+        |> Enum.reduce(fn({x,y}, {xx,yy}) -> {Enum.min([x,xx]), Enum.min([y,yy])} end)
+    end
+    send_daemon_msg(state, [P.tmate_ctl_resize, max_cols, max_rows])
   end
 end

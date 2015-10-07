@@ -96,12 +96,11 @@ defmodule Tmate.WebSocket do
     :ok = Tmate.Session.send_exec_cmd(state.session, 0, cmd)
   end
 
-  defp handle_ws_msg(state, [P.tmate_ws_resize, max_cols, max_rows])
+  defp handle_ws_msg(state, [P.tmate_ws_resize, [max_cols, max_rows]])
       when is_integer(max_cols) and max_cols >= 0 and
            is_integer(max_rows) and max_rows >= 0 do
-    :ok = Tmate.Session.notify_resize(state.session, max_cols, max_rows)
+    :ok = Tmate.Session.notify_resize(state.session, self, {max_cols, max_rows})
   end
-
 
   defp handle_ws_msg(_state, msg) do
     Logger.warn("Unknown ws msg: #{inspect(msg)}")

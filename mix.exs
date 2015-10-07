@@ -4,7 +4,7 @@ defmodule Tmate.Mixfile do
   def project do
     [app: :tmate,
      version: "0.0.1",
-     elixir: "~> 1.0",
+     elixir: "~> 1.1",
      elixirc_paths: ["lib"],
      compilers: Mix.compilers,
      deps: deps,
@@ -16,8 +16,11 @@ defmodule Tmate.Mixfile do
   #
   # Type `mix help compile.app` for more information
   def application do
-    [mod: {Tmate, []},
-     applications: [:logger, :ranch, :cowboy]]
+    # XXX Probably very gross, not sure how not to start listening on ports and all.
+    case Mix.env do
+      :test -> [mod: {ExUnit, []}, applications: [:logger]]
+      _ ->     [mod: {Tmate, []},  applications: [:logger, :ranch, :cowboy]]
+    end
   end
 
   # Specifies your project dependencies
@@ -25,10 +28,9 @@ defmodule Tmate.Mixfile do
   # Type `mix help deps` for examples and options
   defp deps do
     [
-      {:ranch, "~> 1.1.0"},
-      {:cowboy, "~> 1.0.3"},
-      {:poison, []},
-      {:message_pack, "~> 0.2.0"},
+      {:ranch, "~> 1.1"},
+      {:cowboy, "~> 1.0"},
+      {:message_pack, "~> 0.2"},
     ]
   end
 end
