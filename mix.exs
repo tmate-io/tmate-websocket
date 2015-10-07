@@ -30,7 +30,7 @@ defmodule Tmate.Mixfile do
     [
       {:ranch, "~> 1.1"},
       {:cowboy, "~> 1.0"},
-      {:message_pack, "~> 0.2"},
+      {:message_pack, github: "nviennot/msgpack-elixir"}
     ]
   end
 end

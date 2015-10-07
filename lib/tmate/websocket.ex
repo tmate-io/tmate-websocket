@@ -111,6 +111,6 @@ defmodule Tmate.WebSocket do
   end
 
   defp deserialize_msg!(msg) do
-    MessagePack.unpack!(msg, enable_string: true)
+    MessagePack.unpack!(msg)
   end
 end
