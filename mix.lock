@@ -1,6 +1,6 @@
 %{"cowboy": {:hex, :cowboy, "1.0.3"},
   "cowlib": {:hex, :cowlib, "1.0.1"},
-  "message_pack": {:git, "https://github.com/nviennot/msgpack-elixir.git", "8bc51eae5185f4a6b35507a1edd8b2e57dfede4d", []},
+  "message_pack": {:git, "git://github.com/nviennot/msgpack-elixir.git", "97d791c7dc3ee9324d6af3fbbace88da568b1253", []},
   "msgpack": {:git, "git://github.com/msgpack/msgpack-erlang.git", "c666a5f6568ac2e15687bb155442025dbb8b74ff", []},
   "msgpax": {:hex, :msgpax, "0.8.1"},
   "phoenix": {:hex, :phoenix, "1.0.2"},
