@@ -1,6 +1,8 @@
 defmodule Tmate.SessionSupervisor do
   use Supervisor
 
+  require Logger
+
   def start_link(opts \\ []) do
     Supervisor.start_link(__MODULE__, :ok, opts)
   end

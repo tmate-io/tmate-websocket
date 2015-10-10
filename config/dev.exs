@@ -8,3 +8,6 @@ config :tmate, :websocket,
 
 config :logger, :console,
   format: "[$level] $message\n"
+
+config :tmate, :master,
+  nodes: [:master]

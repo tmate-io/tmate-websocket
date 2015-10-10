@@ -3,6 +3,9 @@ defmodule Tmate.SessionTest do
   alias Tmate.Session
   require Tmate.ProtocolDefs, as: P
 
+  defmodule Master do
+  end
+
   defmodule Daemon do
     def daemon_pid(pid) do
       pid
@@ -22,7 +25,7 @@ defmodule Tmate.SessionTest do
   end
 
   setup do
-    {:ok, session} = Session.start_link(Daemon, self)
+    {:ok, session} = Session.start_link(Master, {Daemon, self})
     {:ok, session: session}
   end
 

@@ -4,23 +4,23 @@ defmodule Tmate.Session do
   use GenServer
   require Logger
 
-
   @max_snapshot_lines 300
 
-  def start_link(daemon_transport, daemon, opts \\ []) do
-    GenServer.start_link(__MODULE__, {daemon_transport, daemon}, opts)
+  def start_link(master, daemon, opts \\ []) do
+    GenServer.start_link(__MODULE__, {master, daemon}, opts)
   end
 
-  def init({daemon_transport, daemon}) do
-    Process.monitor(daemon_transport.daemon_pid(daemon))
-    {:ok, %{daemon_transport: daemon_transport, daemon: daemon,
-            pending_ws_subs: [], ws_subs: [],
-            daemon_protocol_version: -1, current_layout: [],
-            clients: HashDict.new}}
+  def init({master, daemon}) do
+    state = %{master: master, daemon: daemon,
+              pending_ws_subs: [], ws_subs: [],
+              slave_protocol_version: -1, daemon_protocol_version: -1,
+              current_layout: [], clients: HashDict.new}
+    Process.monitor(daemon_pid(state))
+    {:ok, state}
   end
 
   def handle_info({:DOWN, _ref, _type, pid, _info}, state) do
-    if state.daemon_transport.daemon_pid(state.daemon) == pid do
+    if daemon_pid(state) ==  pid do
       {:stop, :normal, state}
     else
       {:noreply, handle_ws_disconnect(state, pid)}
@@ -76,14 +76,25 @@ defmodule Tmate.Session do
     {:reply, :ok, handle_ctl_msg(state, msg)}
   end
 
-  defp handle_ctl_msg(state, [P.tmate_ctl_auth, _protocol_version, _ip_address, _pubkey,
-                               session_token, session_token_ro]) do
-    Logger.metadata([session_token: session_token])
-    Logger.info("Session started")
-
+  defp handle_ctl_msg(state, [P.tmate_ctl_auth, protocol_version, ip_address, pubkey, stoken, stoken_ro]) do
     :ok = Tmate.SessionRegistry.register_session(
-            Tmate.SessionRegistry, self, session_token, session_token_ro)
-    Map.merge(state, %{session_token: session_token})
+            Tmate.SessionRegistry, self, stoken, stoken_ro)
+
+    current = self
+    master = state.master
+    sid = master.register_session(ip_address, pubkey, stoken, stoken_ro)
+    _pid = spawn fn ->
+      ref = Process.monitor(current)
+      receive do
+        {:DOWN, ^ref, _type, _pid, _info} ->
+          :ok = master.close_session(sid)
+      end
+    end
+
+    Logger.metadata([sid: sid])
+    Logger.info("Session started (#{stoken})")
+
+    Map.merge(state, %{sid: sid, slave_protocol_version: protocol_version})
   end
 
   defp handle_ctl_msg(state, [P.tmate_ctl_deamon_out_msg, dmsg]) do
@@ -143,8 +154,14 @@ defmodule Tmate.Session do
     for ws <- ws_list, do: Tmate.WebSocket.send_msg(ws, msg)
   end
 
+  defp daemon_pid(state) do
+    {transport, handle} = state.daemon
+    transport.daemon_pid(handle)
+  end
+
   defp send_daemon_msg(state, msg) do
-    state.daemon_transport.send_msg(state.daemon, msg)
+    {transport, handle} = state.daemon
+    transport.send_msg(handle, msg)
   end
 
   defp notify_daemon(state, msg) do

@@ -8,18 +8,18 @@ defmodule Tmate.WebSocket do
 
   def cowboy_dispatch do
     :cowboy_router.compile([{:_, [
-      {"/ws/session/:session_token", __MODULE__, []},
+      {"/ws/session/:stoken", __MODULE__, []},
     ]}])
   end
 
   require IEx
   def init({_transport, :http}, req, _opts) do
-    {session_token, req} = Request.binding(:session_token, req)
-    Logger.metadata([session_token: session_token])
+    {stoken, req} = Request.binding(:stoken, req)
+    Logger.metadata([stoken: stoken])
 
     # TODO Check the request origin
 
-    case Tmate.SessionRegistry.get_session(Tmate.SessionRegistry, session_token) do
+    case Tmate.SessionRegistry.get_session(Tmate.SessionRegistry, stoken) do
       {mode, session} -> {:upgrade, :protocol, :cowboy_websocket, req, %{session: session, access_mode: mode}}
       :error -> {:ok, req, [404, [], "Session not found"]}
     end

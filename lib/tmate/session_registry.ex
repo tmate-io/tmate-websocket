@@ -3,7 +3,7 @@ defmodule Tmate.SessionRegistry do
   require Logger
 
   require Record
-  Record.defrecord :session, [:session_token, :session_token_ro, :pid]
+  Record.defrecord :session, [:stoken, :stoken_ro, :pid]
 
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, :ok, opts)
@@ -14,12 +14,12 @@ defmodule Tmate.SessionRegistry do
     {:ok, %{supervisor: supervisor, sessions: []}}
   end
 
-  def new_session(registry, args) do
-    GenServer.call(registry, {:new_session, args}, :infinity)
+  def new_session(registry, daemon_args) do
+    GenServer.call(registry, {:new_session, daemon_args}, :infinity)
   end
 
-  def register_session(registry, pid, session_token, session_token_ro) do
-    GenServer.call(registry, {:register_session, pid, session_token, session_token_ro}, :infinity)
+  def register_session(registry, pid, stoken, stoken_ro) do
+    GenServer.call(registry, {:register_session, pid, stoken, stoken_ro}, :infinity)
   end
 
   def get_session(registry, token) do
@@ -30,13 +30,14 @@ defmodule Tmate.SessionRegistry do
     quote do: :lists.keyfind(unquote(token), session(unquote(what))+1, unquote(state).sessions)
   end
 
-  def handle_call({:new_session, args}, _from, state) do
-    result = Tmate.SessionSupervisor.start_session(state.supervisor, args)
+  def handle_call({:new_session, daemon_args}, _from, state) do
+    result = Tmate.SessionSupervisor.start_session(state.supervisor,
+               [Tmate.MasterEndpoint, daemon_args])
     {:reply, result, state}
   end
 
-  def handle_call({:register_session, pid, session_token, session_token_ro}, _from, state) do
-    {:reply, :ok, add_session(state, pid, session_token, session_token_ro)}
+  def handle_call({:register_session, pid, stoken, stoken_ro}, _from, state) do
+    {:reply, :ok, add_session(state, pid, stoken, stoken_ro)}
   end
 
   def handle_call({:get_session, token}, _from, state) do
@@ -47,25 +48,25 @@ defmodule Tmate.SessionRegistry do
     end
 
     cond do
-      session = lookup_session(state, :session_token, token) ->
+      session = lookup_session(state, :stoken, token) ->
         {:reply, {:rw, session(session, :pid)}, state}
-      session = lookup_session(state, :session_token_ro, token) ->
+      session = lookup_session(state, :stoken_ro, token) ->
         {:reply, {:ro, session(session, :pid)}, state}
       true -> {:reply, :error, state}
     end
   end
 
-  defp add_session(state, pid, session_token, session_token_ro) do
-    if lookup_session(state, :session_token,    session_token   ) ||
-       lookup_session(state, :session_token,    session_token_ro) ||
-       lookup_session(state, :session_token_ro, session_token_ro) ||
-       lookup_session(state, :session_token_ro, session_token   ) do
+  defp add_session(state, pid, stoken, stoken_ro) do
+    if lookup_session(state, :stoken,    stoken   ) ||
+       lookup_session(state, :stoken,    stoken_ro) ||
+       lookup_session(state, :stoken_ro, stoken_ro) ||
+       lookup_session(state, :stoken_ro, stoken   ) do
          # This should never happen, but we are never too careful.
-         raise "Session token already registered: #{session_token}"
+         raise "Session token already registered: #{stoken}"
     end
 
     Process.monitor(pid)
-    new_session = session(session_token: session_token, session_token_ro: session_token_ro, pid: pid)
+    new_session = session(stoken: stoken, stoken_ro: stoken_ro, pid: pid)
     %{state | sessions: [new_session | state.sessions]}
   end
 
