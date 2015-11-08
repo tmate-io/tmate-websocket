@@ -57,7 +57,6 @@ defmodule Tmate.DaemonTcp do
     # no need to go through the daemon process.
     # the caller process is linked to the daemon process anyways,
     # and the serialization doesn't need to be offloaded.
-    {:ok, data} = MessagePack.pack(msg, enable_string: true)
-    transport.send(socket, data)
+    transport.send(socket, MessagePack.pack!(msg, enable_string: true))
   end
 end

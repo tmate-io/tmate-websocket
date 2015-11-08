@@ -82,7 +82,7 @@ defmodule Tmate.Session do
 
     current = self
     master = state.master
-    sid = master.register_session(ip_address, pubkey, stoken, stoken_ro)
+    {:ok, sid} = master.register_session(ip_address, pubkey, stoken, stoken_ro)
     _pid = spawn fn ->
       ref = Process.monitor(current)
       receive do
@@ -150,7 +150,7 @@ defmodule Tmate.Session do
     # TODO we'll need a better buffering strategy
     # Right now we are sending async messages, with no back pressure.
     # This might be problematic.
-    # We might want to serialize the msg here to avoid doing it N times.
+    # TODO We might want to serialize the msg here to avoid doing it N times.
     for ws <- ws_list, do: Tmate.WebSocket.send_msg(ws, msg)
   end
 
