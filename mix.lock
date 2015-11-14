@@ -5,4 +5,5 @@
   "msgpax": {:hex, :msgpax, "0.8.1"},
   "phoenix": {:hex, :phoenix, "1.0.2"},
   "plug": {:hex, :plug, "1.0.2"},
-  "ranch": {:hex, :ranch, "1.1.0"}}
+  "ranch": {:hex, :ranch, "1.1.0"},
+  "uuid": {:hex, :uuid, "1.1.1"}}

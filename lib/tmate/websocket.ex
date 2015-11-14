@@ -25,6 +25,11 @@ defmodule Tmate.WebSocket do
     end
   end
 
+  def ws_base_url do
+    {:ok, ws_env} = Application.fetch_env(:tmate, :websocket)
+    "ws://#{ws_env[:host]}:#{ws_env[:port]}/ws/session"
+  end
+
   def handle(req, args) do
     {:ok, req} = apply(Request, :reply, args ++ [req])
     {:ok, req, :nostate}

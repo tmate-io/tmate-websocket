@@ -1,10 +1,10 @@
 defmodule Tmate.MasterEndpoint do
-  def register_session(ip_address, pubkey, session_token, session_token_ro) do
-    call_master({:register_session, ip_address, pubkey, session_token, session_token_ro})
+  def register_session(id, attrs) do
+    emit_event(:register_session, id, attrs)
   end
 
-  def close_session(session_id) do
-    call_master({:close_session, session_id})
+  def close_session(id) do
+    emit_event(:close_session, id)
   end
 
   def ping_master do
@@ -50,6 +50,18 @@ defmodule Tmate.MasterEndpoint do
             call_master(args, tries - 1, retry_timeout)
         end
     end
+  end
+
+  def emit_event(event_type, entity_id, params \\ %{}) do
+    call_master({:event, current_timestamp, event_type, entity_id, params})
+  end
+
+  defp current_timestamp() do
+    # from Ecto lib.
+    erl_timestamp = :os.timestamp
+    {_, _, usec} = erl_timestamp
+    {date, {h, m, s}} = :calendar.now_to_datetime(erl_timestamp)
+    {date, {h, m, s, usec}}
   end
 
   defp pg2_namespace do

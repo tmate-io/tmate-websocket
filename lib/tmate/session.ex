@@ -12,6 +12,7 @@ defmodule Tmate.Session do
 
   def init({master, daemon}) do
     state = %{master: master, daemon: daemon,
+              id: UUID.uuid1(),
               pending_ws_subs: [], ws_subs: [],
               slave_protocol_version: -1, daemon_protocol_version: -1,
               current_layout: [], clients: HashDict.new}
@@ -76,25 +77,34 @@ defmodule Tmate.Session do
     {:reply, :ok, handle_ctl_msg(state, msg)}
   end
 
-  defp handle_ctl_msg(state, [P.tmate_ctl_auth, protocol_version, ip_address, pubkey, stoken, stoken_ro]) do
-    :ok = Tmate.SessionRegistry.register_session(
-            Tmate.SessionRegistry, self, stoken, stoken_ro)
-
+  defp watch_session_close(state) do
     current = self
     master = state.master
-    {:ok, sid} = master.register_session(ip_address, pubkey, stoken, stoken_ro)
+    id = state.id
+
     _pid = spawn fn ->
       ref = Process.monitor(current)
       receive do
         {:DOWN, ^ref, _type, _pid, _info} ->
-          :ok = master.close_session(sid)
+          :ok = master.close_session(id)
       end
     end
+  end
 
-    Logger.metadata([sid: sid])
+  defp handle_ctl_msg(state, [P.tmate_ctl_auth, protocol_version, ip_address, pubkey,
+                              stoken, stoken_ro]) do
+    :ok = Tmate.SessionRegistry.register_session(
+            Tmate.SessionRegistry, self, stoken, stoken_ro)
+
+    :ok = state.master.register_session(state.id, %{ip_address: ip_address, pubkey: pubkey,
+                                        ws_base_url: Tmate.WebSocket.ws_base_url,
+                                        stoken: stoken, stoken_ro: stoken_ro})
+    watch_session_close(state)
+
+    Logger.metadata([sid: state.id])
     Logger.info("Session started (#{stoken})")
 
-    Map.merge(state, %{sid: sid, slave_protocol_version: protocol_version})
+    %{state | slave_protocol_version: protocol_version}
   end
 
   defp handle_ctl_msg(state, [P.tmate_ctl_deamon_out_msg, dmsg]) do
