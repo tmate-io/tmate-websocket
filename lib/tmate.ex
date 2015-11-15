@@ -4,8 +4,6 @@ defmodule Tmate do
   def start(_type, _args) do
     import Supervisor.Spec
 
-    :ping = Tmate.MasterEndpoint.ping_master
-
     Application.put_env(:phoenix, :serve_endpoints, true, persistent: true)
 
     {:ok, daemon_options} = Application.fetch_env(:tmate, :daemon)

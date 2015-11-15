@@ -3,6 +3,10 @@ defmodule Tmate.MasterEndpoint do
     call_master({:event, current_timestamp, event_type, entity_id, params})
   end
 
+  def identify_client(token, username, ip_address, pubkey) do
+    call_master({:identify_client, token, username, ip_address, pubkey})
+  end
+
   def ping_master do
     {:ok, master_options} = Application.fetch_env(:tmate, :master)
     results = master_options[:nodes] |> Enum.map fn(name) ->

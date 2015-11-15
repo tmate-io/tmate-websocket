@@ -34,6 +34,7 @@ defmodule Tmate.ProtocolDefs do
     tmate_ctl_snapshot,
     tmate_ctl_client_join,
     tmate_ctl_client_left,
+    tmate_ctl_exec,
   ]
 
   enum tmate_control_in_msg_types, [
@@ -41,6 +42,7 @@ defmodule Tmate.ProtocolDefs do
     tmate_ctl_request_snapshot,
     tmate_ctl_pane_keys,
     tmate_ctl_resize,
+    tmate_ctl_exec_response,
   ]
 
   enum tmate_daemon_out_msg_types, [

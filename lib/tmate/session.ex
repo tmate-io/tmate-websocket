@@ -11,6 +11,8 @@ defmodule Tmate.Session do
   end
 
   def init({master, daemon}) do
+    :ping = Tmate.MasterEndpoint.ping_master
+
     state = %{master: master, daemon: daemon,
               id: UUID.uuid1(),
               pending_ws_subs: [], ws_subs: [],
@@ -51,7 +53,7 @@ defmodule Tmate.Session do
   def handle_call({:ws_request_sub, ws, client}, _from, state) do
     # We'll queue up the subscribers until we get the snapshot
     # so they can get a consistent stream.
-    state = client_joined(state, ws, :ws, client)
+    state = client_joined(state, ws, client)
     Process.monitor(ws)
     send_daemon_msg(state, [P.tmate_ctl_request_snapshot, @max_snapshot_lines])
     {:reply, :ok, %{state | pending_ws_subs: state.pending_ws_subs ++ [ws]}}
@@ -124,11 +126,18 @@ defmodule Tmate.Session do
   end
 
   defp handle_ctl_msg(state, [P.tmate_ctl_client_join, client_id, ip_address, pubkey]) do
-    client_joined(state, client_id, :ssh, %{ip_address: ip_address, pubkey: pubkey})
+    client_joined(state, client_id, %{type: :ssh, ip_address: ip_address, identity: pubkey})
   end
 
   defp handle_ctl_msg(state, [P.tmate_ctl_client_left, client_id]) do
     client_left(state, client_id)
+  end
+
+  defp handle_ctl_msg(state, [P.tmate_ctl_exec, username, ip_address, pubkey, command]) do
+    Logger.info("ssh exec: #{inspect(command)} from #{username}@#{ip_address} (#{pubkey})")
+    command = String.split(command, " ") |> Enum.filter(& &1 != "")
+    ssh_exec(state, command, username, ip_address, pubkey)
+    state
   end
 
   defp handle_ctl_msg(state, [cmd | _]) do
@@ -180,10 +189,15 @@ defmodule Tmate.Session do
                              [P.tmate_in_notify, msg]])
   end
 
-  defp client_joined(state, ref, type, client) do
+  defp notify_exec_response(state, exit_code, msg) do
+    msg = ((msg |> String.split("\n")) ++ [""]) |> Enum.join("\r\n")
+    send_daemon_msg(state, [P.tmate_ctl_exec_response, exit_code, msg])
+  end
+
+  defp client_joined(state, ref, client) do
     client_id = state.next_client_id
     state = %{state | next_client_id: client_id + 1}
-    client = Map.merge(client, %{id: client_id, type: type})
+    client = Map.merge(client, %{id: client_id})
 
     state = %{state | clients: HashDict.put(state.clients, ref, client)}
     update_client_presence(state, client, true)
@@ -203,7 +217,7 @@ defmodule Tmate.Session do
   end
 
   defp notify_client_presence_master(state, client, true) do
-    {client_info, _} = Map.split(client, [:id, :type, :ip_address, :pubkey])
+    {client_info, _} = Map.split(client, [:id, :type, :ip_address, :identity])
     :ok = state.master.emit_event(:session_join, state.id, client_info)
   end
 
@@ -237,5 +251,18 @@ defmodule Tmate.Session do
         |> Enum.reduce(fn({x,y}, {xx,yy}) -> {Enum.min([x,xx]), Enum.min([y,yy])} end)
     end
     send_daemon_msg(state, [P.tmate_ctl_resize, max_cols, max_rows])
+  end
+
+  defp ssh_exec(state, ["identify", token], username, ip_address, pubkey) do
+    case state.master.identify_client(token, username, ip_address, pubkey) do
+      {:ok, message} -> notify_exec_response(state, 0, message)
+      {:error, reason} ->
+        notify_exec_response(state, 1, "Internal error")
+        raise reason
+    end
+  end
+
+  defp ssh_exec(state, _command, _username, _ip_address, _pubkey) do
+    notify_exec_response(state, 1, "Invalid command")
   end
 end
