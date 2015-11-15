@@ -15,7 +15,7 @@ defmodule Tmate.Session do
               id: UUID.uuid1(),
               pending_ws_subs: [], ws_subs: [],
               slave_protocol_version: -1, daemon_protocol_version: -1,
-              current_layout: [], clients: HashDict.new}
+              current_layout: [], clients: HashDict.new, next_client_id: 0}
     Process.monitor(daemon_pid(state))
     {:ok, state}
   end
@@ -32,8 +32,8 @@ defmodule Tmate.Session do
     GenServer.call(session, {:notify_daemon_msg, msg}, :infinity)
   end
 
-  def ws_request_sub(session, ws, client_info) do
-    GenServer.call(session, {:ws_request_sub, ws, client_info}, :infinity)
+  def ws_request_sub(session, ws, client) do
+    GenServer.call(session, {:ws_request_sub, ws, client}, :infinity)
   end
 
   def send_pane_keys(session, pane_id, data) do
@@ -48,10 +48,10 @@ defmodule Tmate.Session do
     GenServer.call(session, {:notify_resize, ws, size}, :infinity)
   end
 
-  def handle_call({:ws_request_sub, ws, client_info}, _from, state) do
+  def handle_call({:ws_request_sub, ws, client}, _from, state) do
     # We'll queue up the subscribers until we get the snapshot
     # so they can get a consistent stream.
-    state = client_joined(state, ws, client_info)
+    state = client_joined(state, ws, :ws, client)
     Process.monitor(ws)
     send_daemon_msg(state, [P.tmate_ctl_request_snapshot, @max_snapshot_lines])
     {:reply, :ok, %{state | pending_ws_subs: state.pending_ws_subs ++ [ws]}}
@@ -86,7 +86,7 @@ defmodule Tmate.Session do
       ref = Process.monitor(current)
       receive do
         {:DOWN, ^ref, _type, _pid, _info} ->
-          :ok = master.close_session(id)
+          :ok = master.emit_event(:session_close, id)
       end
     end
   end
@@ -96,9 +96,10 @@ defmodule Tmate.Session do
     :ok = Tmate.SessionRegistry.register_session(
             Tmate.SessionRegistry, self, stoken, stoken_ro)
 
-    :ok = state.master.register_session(state.id, %{ip_address: ip_address, pubkey: pubkey,
-                                        ws_base_url: Tmate.WebSocket.ws_base_url,
-                                        stoken: stoken, stoken_ro: stoken_ro})
+    :ok = state.master.emit_event(:session_register, state.id,
+                                  %{ip_address: ip_address, pubkey: pubkey,
+                                    ws_base_url: Tmate.WebSocket.ws_base_url,
+                                    stoken: stoken, stoken_ro: stoken_ro})
     watch_session_close(state)
 
     Logger.metadata([sid: state.id])
@@ -123,7 +124,7 @@ defmodule Tmate.Session do
   end
 
   defp handle_ctl_msg(state, [P.tmate_ctl_client_join, client_id, ip_address, pubkey]) do
-    client_joined(state, client_id, [ip_address: ip_address, pubkey: pubkey])
+    client_joined(state, client_id, :ssh, %{ip_address: ip_address, pubkey: pubkey})
   end
 
   defp handle_ctl_msg(state, [P.tmate_ctl_client_left, client_id]) do
@@ -179,33 +180,49 @@ defmodule Tmate.Session do
                              [P.tmate_in_notify, msg]])
   end
 
-  defp client_joined(state, id, client_info) do
-    state = %{state | clients: HashDict.put(state.clients, id, client_info)}
-    notify_clients_change(state, client_info, true)
+  defp client_joined(state, ref, type, client) do
+    client_id = state.next_client_id
+    state = %{state | next_client_id: client_id + 1}
+    client = Map.merge(client, %{id: client_id, type: type})
+
+    state = %{state | clients: HashDict.put(state.clients, ref, client)}
+    update_client_presence(state, client, true)
     state
   end
 
-  defp client_left(state, id) do
-    client_info = HashDict.fetch!(state.clients, id)
-    state = %{state | clients: HashDict.delete(state.clients, id)}
-    notify_clients_change(state, client_info, false)
+  defp client_left(state, ref) do
+    client = HashDict.fetch!(state.clients, ref)
+    state = %{state | clients: HashDict.delete(state.clients, ref)}
+    update_client_presence(state, client, false)
     state
   end
 
-  defp notify_clients_change(state, client_info, join) do
+  defp update_client_presence(state, client, join) do
+    notify_client_presence_daemon(state, client, join)
+    notify_client_presence_master(state, client, join)
+  end
+
+  defp notify_client_presence_master(state, client, true) do
+    {client_info, _} = Map.split(client, [:id, :type, :ip_address, :pubkey])
+    :ok = state.master.emit_event(:session_join, state.id, client_info)
+  end
+
+  defp notify_client_presence_master(state, client, false) do
+    :ok = state.master.emit_event(:session_left, state.id, %{id: client[:id]})
+  end
+
+  defp notify_client_presence_daemon(state, client, join) do
     verb = if join, do: 'joined', else: 'left'
     num_clients = HashDict.size(state.clients)
-    msg = "A mate has #{verb} (#{client_info[:ip_address]}) -- " <>
+    msg = "A mate has #{verb} (#{client[:ip_address]}) -- " <>
           "#{num_clients} client#{if num_clients > 1, do: 's'} currently connected"
     notify_daemon(state, msg)
   end
 
-  defp update_client_size(state, ws, size) do
-    client_info =
-      HashDict.fetch!(state.clients, ws)
-      |> Keyword.put(:size, size)
-
-    state = %{state | clients: HashDict.put(state.clients, ws, client_info)}
+  defp update_client_size(state, ref, size) do
+    client = HashDict.fetch!(state.clients, ref)
+    client = %{client | size: size}
+    state = %{state | clients: HashDict.put(state.clients, ref, client)}
     recalculate_sizes(state)
     state
   end

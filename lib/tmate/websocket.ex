@@ -46,7 +46,7 @@ defmodule Tmate.WebSocket do
 
     Process.monitor(state.session)
 
-    :ok = Tmate.Session.ws_request_sub(state.session, self, [ip_address: ip])
+    :ok = Tmate.Session.ws_request_sub(state.session, self, %{ip_address: ip})
 
     start_ping_timer
     {:ok, req, state}

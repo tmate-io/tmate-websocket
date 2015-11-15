@@ -1,10 +1,6 @@
 defmodule Tmate.MasterEndpoint do
-  def register_session(id, attrs) do
-    emit_event(:register_session, id, attrs)
-  end
-
-  def close_session(id) do
-    emit_event(:close_session, id)
+  def emit_event(event_type, entity_id, params \\ %{}) do
+    call_master({:event, current_timestamp, event_type, entity_id, params})
   end
 
   def ping_master do
@@ -50,10 +46,6 @@ defmodule Tmate.MasterEndpoint do
             call_master(args, tries - 1, retry_timeout)
         end
     end
-  end
-
-  def emit_event(event_type, entity_id, params \\ %{}) do
-    call_master({:event, current_timestamp, event_type, entity_id, params})
   end
 
   defp current_timestamp() do
