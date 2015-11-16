@@ -53,7 +53,7 @@ defmodule Tmate.Session do
   def handle_call({:ws_request_sub, ws, client}, _from, state) do
     # We'll queue up the subscribers until we get the snapshot
     # so they can get a consistent stream.
-    state = client_joined(state, ws, client)
+    state = client_join(state, ws, client)
     Process.monitor(ws)
     send_daemon_msg(state, [P.tmate_ctl_request_snapshot, @max_snapshot_lines])
     {:reply, :ok, %{state | pending_ws_subs: state.pending_ws_subs ++ [ws]}}
@@ -125,8 +125,9 @@ defmodule Tmate.Session do
     %{state | pending_ws_subs: [], ws_subs: state.ws_subs ++ state.pending_ws_subs}
   end
 
-  defp handle_ctl_msg(state, [P.tmate_ctl_client_join, client_id, ip_address, pubkey]) do
-    client_joined(state, client_id, %{type: :ssh, ip_address: ip_address, identity: pubkey})
+  defp handle_ctl_msg(state, [P.tmate_ctl_client_join, client_id, ip_address, pubkey, readonly]) do
+    client_join(state, client_id, %{type: :ssh, ip_address: ip_address,
+                                    identity: pubkey, readonly: readonly})
   end
 
   defp handle_ctl_msg(state, [P.tmate_ctl_client_left, client_id]) do
@@ -194,7 +195,7 @@ defmodule Tmate.Session do
     send_daemon_msg(state, [P.tmate_ctl_exec_response, exit_code, msg])
   end
 
-  defp client_joined(state, ref, client) do
+  defp client_join(state, ref, client) do
     client_id = state.next_client_id
     state = %{state | next_client_id: client_id + 1}
     client = Map.merge(client, %{id: client_id})
@@ -217,7 +218,7 @@ defmodule Tmate.Session do
   end
 
   defp notify_client_presence_master(state, client, true) do
-    {client_info, _} = Map.split(client, [:id, :type, :ip_address, :identity])
+    {client_info, _} = Map.split(client, [:id, :type, :ip_address, :identity, :readonly])
     :ok = state.master.emit_event(:session_join, state.id, client_info)
   end
 
@@ -235,7 +236,7 @@ defmodule Tmate.Session do
 
   defp update_client_size(state, ref, size) do
     client = HashDict.fetch!(state.clients, ref)
-    client = %{client | size: size}
+    client = Map.merge(client, %{size: size})
     state = %{state | clients: HashDict.put(state.clients, ref, client)}
     recalculate_sizes(state)
     state

@@ -12,16 +12,39 @@ defmodule Tmate.WebSocket do
     ]}])
   end
 
-  require IEx
   def init({_transport, :http}, req, _opts) do
     {stoken, req} = Request.binding(:stoken, req)
     Logger.metadata([stoken: stoken])
 
     # TODO Check the request origin
 
-    case Tmate.SessionRegistry.get_session(Tmate.SessionRegistry, stoken) do
-      {mode, session} -> {:upgrade, :protocol, :cowboy_websocket, req, %{session: session, access_mode: mode}}
-      :error -> {:ok, req, [404, [], "Session not found"]}
+    # TODO monads?
+    case identity = get_identity(req) do
+      nil -> {:ok, req, [401, [], "Cookie not found?"]}
+      _ ->
+        case Tmate.SessionRegistry.get_session(Tmate.SessionRegistry, stoken) do
+          {mode, session} -> {:upgrade, :protocol, :cowboy_websocket, req,
+                              %{session: session, access_mode: mode, identity: identity}}
+          :error -> {:ok, req, [404, [], "Session not found"]}
+        end
+    end
+  end
+
+  defp get_identity(req) do
+    {:ok, websocket_options} = Application.fetch_env(:tmate, :websocket)
+    opts = websocket_options[:cookie_opts]
+
+    store = Plug.Session.COOKIE
+    store_opts = store.init(opts)
+    store_opts = %{store_opts | key_opts: Keyword.put(store_opts.key_opts, :cache, nil)}
+    conn = %{secret_key_base: opts[:secret_key_base]}
+
+    {cookie, _} = Request.cookie(opts[:key], req)
+    case cookie do
+      :undefined -> nil
+      _ ->
+        {:term, %{"identity" => identity}} = store.get(conn, cookie, store_opts)
+        identity
     end
   end
 
@@ -41,12 +64,13 @@ defmodule Tmate.WebSocket do
 
   def websocket_init(_transport, req, state) do
     {{ip, _port}, req} = Request.peer(req)
-    ip = :inet_parse.ntoa(ip)
+    ip = :inet_parse.ntoa(ip) |> to_string
     Logger.info("Accepted websocket connection (ip=#{ip}) (access_mode=#{state.access_mode})")
 
     Process.monitor(state.session)
 
-    client_info = %{type: :web, identity: "XXX", ip_address: ip}
+    client_info = %{type: :web, identity: state.identity, ip_address: ip,
+                    readonly: [ro: true, rw: false][state.access_mode]}
     :ok = Tmate.Session.ws_request_sub(state.session, self, client_info)
 
     start_ping_timer
@@ -84,7 +108,6 @@ defmodule Tmate.WebSocket do
   end
 
   def websocket_terminate(_reason, _req, _state) do
-    Logger.info("Closed websocket connection")
     :ok
   end
 
