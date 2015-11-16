@@ -23,7 +23,7 @@ defmodule Tmate.Session do
   end
 
   def handle_info({:DOWN, _ref, _type, pid, _info}, state) do
-    if daemon_pid(state) ==  pid do
+    if daemon_pid(state) == pid do
       {:stop, :normal, state}
     else
       {:noreply, handle_ws_disconnect(state, pid)}

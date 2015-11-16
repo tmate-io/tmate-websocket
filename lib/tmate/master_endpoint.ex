@@ -32,8 +32,10 @@ defmodule Tmate.MasterEndpoint do
         ref = Process.monitor(pid)
         send(pid, {:call, ref, self, args})
         receive do
-          {:reply, ^ref, ret} -> {:reply, ret}
           {:DOWN, ^ref, _type, _pid, _info} -> {:error, :noproc}
+          {:reply, ^ref, ret} ->
+            Process.demonitor(ref, [:flush])
+            {:reply, ret}
         end
     end
   end
