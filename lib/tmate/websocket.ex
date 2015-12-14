@@ -30,7 +30,7 @@ defmodule Tmate.WebSocket do
     end
   end
 
-  defp get_identity(req) do
+  defp get_identity(_req) do
     UUID.uuid1()
   end
 
