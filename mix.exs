@@ -33,6 +33,7 @@ defmodule Tmate.Mixfile do
       {:plug, "~> 1.0"},
       {:uuid, "~> 1.1" },
       {:rollbax, ">= 0.0.0"},
+      {:exrm, ">= 0.0.0"},
       {:message_pack, github: "nviennot/msgpack-elixir"}
     ]
   end
