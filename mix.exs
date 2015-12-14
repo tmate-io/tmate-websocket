@@ -19,7 +19,7 @@ defmodule Tmate.Mixfile do
     # XXX Probably very gross, not sure how not to start listening on ports and all.
     case Mix.env do
       :test -> [mod: {ExUnit, []}, applications: [:logger]]
-      _ ->     [mod: {Tmate, []},  applications: [:logger, :ranch, :cowboy]]
+      _ ->     [mod: {Tmate, []},  applications: [:logger, :ranch, :cowboy, :rollbax]]
     end
   end
 
@@ -32,6 +32,7 @@ defmodule Tmate.Mixfile do
       {:cowboy, "~> 1.0"},
       {:plug, "~> 1.0"},
       {:uuid, "~> 1.1" },
+      {:rollbax, ">= 0.0.0"},
       {:message_pack, github: "nviennot/msgpack-elixir"}
     ]
   end

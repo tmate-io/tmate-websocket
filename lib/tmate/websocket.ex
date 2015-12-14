@@ -31,22 +31,26 @@ defmodule Tmate.WebSocket do
   end
 
   defp get_identity(req) do
-    {:ok, websocket_options} = Application.fetch_env(:tmate, :websocket)
-    opts = websocket_options[:cookie_opts]
-
-    store = Plug.Session.COOKIE
-    store_opts = store.init(opts)
-    store_opts = %{store_opts | key_opts: Keyword.put(store_opts.key_opts, :cache, nil)}
-    conn = %{secret_key_base: opts[:secret_key_base]}
-
-    {cookie, _} = Request.cookie(opts[:key], req)
-    case cookie do
-      :undefined -> nil
-      _ ->
-        {:term, %{"identity" => identity}} = store.get(conn, cookie, store_opts)
-        identity
-    end
+    UUID.uuid1()
   end
+
+  # defp get_identity(req) do
+    # {:ok, websocket_options} = Application.fetch_env(:tmate, :websocket)
+    # opts = websocket_options[:cookie_opts]
+
+    # store = Plug.Session.COOKIE
+    # store_opts = store.init(opts)
+    # store_opts = %{store_opts | key_opts: Keyword.put(store_opts.key_opts, :cache, nil)}
+    # conn = %{secret_key_base: opts[:secret_key_base]}
+
+    # {cookie, _} = Request.cookie(opts[:key], req)
+    # case cookie do
+      # :undefined -> nil
+      # _ ->
+        # {:term, %{"identity" => identity}} = store.get(conn, cookie, store_opts)
+        # identity
+    # end
+  # end
 
   def ws_base_url do
     {:ok, ws_env} = Application.fetch_env(:tmate, :websocket)
