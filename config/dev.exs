@@ -1,10 +1,8 @@
 use Mix.Config
 
-config :tmate, :daemon,
-  port: 4002
-
 config :tmate, :websocket,
-  port: 4001,
+  listener: :ranch_tcp,
+  ranch_opts: [port: 4001],
   host: "localhost",
   cookie_opts: [
     key: "tmate_session",

@@ -14,7 +14,7 @@ defmodule Tmate do
     children = [
       :ranch.child_spec(:daemon_tcp, 3, :ranch_tcp, daemon_options,
                         Tmate.DaemonTcp, []),
-      :ranch.child_spec(:websocket_tcp, 3, :ranch_tcp, websocket_options,
+      :ranch.child_spec(:websocket_tcp, 3, websocket_options[:listener], websocket_options[:ranch_opts],
                         :cowboy_protocol, cowboy_opts),
       worker(Tmate.SessionRegistry, [[name: Tmate.SessionRegistry]]),
     ]

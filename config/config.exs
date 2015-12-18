@@ -11,3 +11,6 @@ config :logger, Rollbax.Notifier,
 config :rollbax,
   access_token: "cbf96daf284c4c85b608e86aa3def4c0",
   environment: Mix.env
+
+config :tmate, :daemon,
+  port: 4002
