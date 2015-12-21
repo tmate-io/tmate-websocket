@@ -258,15 +258,17 @@ defmodule Tmate.Session do
     state
   end
 
-  defp recalculate_sizes(state) do
-    {max_cols, max_rows} = if Enum.empty?(state.clients) do
+  def recalculate_sizes(state) do
+    sizes = state.clients
+    |> HashDict.values
+    |> Enum.filter_map(& &1[:size], & &1[:size])
+
+    {max_cols, max_rows} = if Enum.empty?(sizes) do
       {-1,-1}
     else
-      state.clients
-        |> HashDict.values
-        |> Enum.filter_map(& &1[:size], & &1[:size])
-        |> Enum.reduce(fn({x,y}, {xx,yy}) -> {Enum.min([x,xx]), Enum.min([y,yy])} end)
+      sizes |> Enum.reduce(fn({x,y}, {xx,yy}) -> {Enum.min([x,xx]), Enum.min([y,yy])} end)
     end
+
     send_daemon_msg(state, [P.tmate_ctl_resize, max_cols, max_rows])
   end
 
