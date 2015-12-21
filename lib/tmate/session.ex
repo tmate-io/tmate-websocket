@@ -23,6 +23,11 @@ defmodule Tmate.Session do
     {:ok, state}
   end
 
+  def handle_info({:timeout, _ref, {:notify_daemon, msg}}, state) do
+    notify_daemon(state, msg)
+    {:noreply, state}
+  end
+
   def handle_info({:DOWN, _ref, _type, pid, _info}, state) do
     if daemon_pid(state) == pid do
       {:stop, :normal, state}
@@ -108,6 +113,8 @@ defmodule Tmate.Session do
     Logger.metadata([sid: state.id])
     Logger.info("Session started (#{stoken})")
 
+    delayed_notify_daemon(10 * 1000, "Try the HTML5 client: https://tmate.io/t/#{stoken}")
+
     %{state | slave_protocol_version: protocol_version}
   end
 
@@ -184,6 +191,10 @@ defmodule Tmate.Session do
   defp send_daemon_msg(state, msg) do
     {transport, handle} = state.daemon
     transport.send_msg(handle, msg)
+  end
+
+  defp delayed_notify_daemon(timeout, msg) do
+    :erlang.start_timer(timeout, self, {:notify_daemon, msg})
   end
 
   defp notify_daemon(state, msg) do
