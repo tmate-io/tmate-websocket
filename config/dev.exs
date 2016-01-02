@@ -15,3 +15,5 @@ config :logger, :console,
 
 config :tmate, :master,
   nodes: [:master]
+
+config :rollbax, enabled: false

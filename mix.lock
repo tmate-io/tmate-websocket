@@ -7,7 +7,7 @@
   "getopt": {:hex, :getopt, "0.8.2"},
   "hackney": {:hex, :hackney, "1.4.7"},
   "idna": {:hex, :idna, "1.0.2"},
-  "message_pack": {:git, "git://github.com/nviennot/msgpack-elixir.git", "97d791c7dc3ee9324d6af3fbbace88da568b1253", []},
+  "message_pack": {:git, "https://github.com/nviennot/msgpack-elixir.git", "97d791c7dc3ee9324d6af3fbbace88da568b1253", []},
   "mimerl": {:hex, :mimerl, "1.0.2"},
   "msgpack": {:git, "git://github.com/msgpack/msgpack-erlang.git", "c666a5f6568ac2e15687bb155442025dbb8b74ff", []},
   "msgpax": {:hex, :msgpax, "0.8.1"},
