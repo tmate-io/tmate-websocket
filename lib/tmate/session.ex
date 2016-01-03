@@ -143,7 +143,7 @@ defmodule Tmate.Session do
   end
 
   defp handle_ctl_msg(state, [cmd | _]) do
-    Logger.warn("Unknown message type=#{cmd}")
+    Logger.error("Unknown message type=#{cmd}")
     state
   end
 
@@ -212,7 +212,7 @@ defmodule Tmate.Session do
         state = %{state | clients: HashDict.delete(state.clients, ref)}
         update_client_presence(state, client, false)
       :error ->
-        Logger.warn("Missing client #{inspect(ref)} in client list")
+        Logger.error("Missing client #{inspect(ref)} in client list")
     end
     state
   end
