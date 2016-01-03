@@ -207,9 +207,13 @@ defmodule Tmate.Session do
   end
 
   defp client_left(state, ref) do
-    client = HashDict.fetch!(state.clients, ref)
-    state = %{state | clients: HashDict.delete(state.clients, ref)}
-    update_client_presence(state, client, false)
+    case HashDict.fetch(state.clients, ref) do
+      {:ok, client} ->
+        state = %{state | clients: HashDict.delete(state.clients, ref)}
+        update_client_presence(state, client, false)
+      :error ->
+        Logger.warn("Missing client #{inspect(ref)} in client list")
+    end
     state
   end
 
