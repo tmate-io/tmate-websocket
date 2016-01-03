@@ -18,6 +18,7 @@ defmodule Tmate.Session do
               pending_ws_subs: [], ws_subs: [],
               slave_protocol_version: -1, daemon_protocol_version: -1,
               current_layout: [], clients: HashDict.new, next_client_id: 0}
+    Logger.metadata(session_id: state.id)
     Process.monitor(daemon_pid(state))
     {:ok, state}
   end
