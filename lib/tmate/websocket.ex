@@ -96,7 +96,6 @@ defmodule Tmate.WebSocket do
   end
 
   def websocket_handle({:pong, _}, req, state) do
-    start_ping_timer
     {:ok, req, state}
   end
 
@@ -105,6 +104,7 @@ defmodule Tmate.WebSocket do
   end
 
   def websocket_info({:timeout, _ref, :ping}, req, state) do
+    start_ping_timer
     {:reply, :ping, req, state}
   end
 
