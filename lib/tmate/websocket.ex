@@ -99,6 +99,10 @@ defmodule Tmate.WebSocket do
     {:ok, req, state}
   end
 
+  def websocket_handle(_, req, state) do
+    {:ok, req, state}
+  end
+
   defp start_ping_timer() do
     :erlang.start_timer(@ping_interval_sec * 1000, self, :ping)
   end
