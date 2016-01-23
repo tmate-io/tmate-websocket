@@ -1,7 +1,5 @@
 use Mix.Config
 
-import_config "#{Mix.env}.exs"
-
 config :logger,
   backends: [:console, Rollbax.Notifier]
 
@@ -17,3 +15,5 @@ config :tmate, :daemon,
 
 config :tmate, :master,
   session_url_fmt: "http://localhost:4000/t/%s"
+
+import_config "#{Mix.env}.exs"
