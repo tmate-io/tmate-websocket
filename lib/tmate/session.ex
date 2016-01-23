@@ -99,25 +99,6 @@ defmodule Tmate.Session do
     end
   end
 
-  defp handle_ctl_msg(state, [P.tmate_ctl_header, 1=_protocol_version, ip_address, pubkey,
-                              stoken, stoken_ro]) do
-    :ok = Tmate.SessionRegistry.register_session(
-            Tmate.SessionRegistry, self, stoken, stoken_ro)
-
-    :ok = state.master.emit_event(:session_register, state.id,
-                                  %{ip_address: ip_address, pubkey: pubkey,
-                                    ws_base_url: Tmate.WebSocket.ws_base_url,
-                                    stoken: stoken, stoken_ro: stoken_ro})
-    watch_session_close(state)
-
-    Logger.metadata([sid: state.id])
-    Logger.info("Session started (#{stoken})")
-
-    delayed_notify_daemon(10 * 1000, "Try the HTML5 client: https://tmate.io/t/#{stoken}")
-
-    state
-  end
-
   defp handle_ctl_msg(state, [P.tmate_ctl_header, 2=_protocol_version, ip_address, pubkey,
                               stoken, stoken_ro, ssh_cmd_fmt,
                               client_version, client_protocol_version]) do
@@ -128,7 +109,6 @@ defmodule Tmate.Session do
 
     :ok = state.master.emit_event(:session_register, state.id,
                                   %{ip_address: ip_address, pubkey: pubkey,
-                                    ws_base_url: Tmate.WebSocket.ws_base_url,
                                     ws_url_fmt: Tmate.WebSocket.ws_url_fmt,
                                     ssh_cmd_fmt: ssh_cmd_fmt,
                                     stoken: stoken, stoken_ro: stoken_ro,

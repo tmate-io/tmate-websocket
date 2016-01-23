@@ -52,18 +52,14 @@ defmodule Tmate.WebSocket do
     # end
   # end
 
-  def ws_base_url do
+  def ws_url_fmt do
     {:ok, ws_env} = Application.fetch_env(:tmate, :websocket)
     ssl = ws_env[:listener] == :ranch_ssl
     host = ws_env[:host] || Node.self |> to_string |> String.split("@") |> Enum.at(1)
     default_port = if ssl, do: 443, else: 80
     port = if ws_env[:ranch_opts][:port] == default_port, do: "", else: ":#{ws_env[:ranch_opts][:port]}"
     schema = if ssl, do: "wss", else: "ws"
-    "#{schema}://#{host}#{port}/ws/session"
-  end
-
-  def ws_url_fmt do
-    "#{ws_base_url}/%s"
+    "#{schema}://#{host}#{port}/ws/session/%s"
   end
 
   def handle(req, args) do
