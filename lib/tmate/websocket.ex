@@ -62,6 +62,10 @@ defmodule Tmate.WebSocket do
     "#{schema}://#{host}#{port}/ws/session"
   end
 
+  def ws_url_fmt do
+    "#{ws_base_url}/%s"
+  end
+
   def handle(req, args) do
     {:ok, req} = apply(Request, :reply, args ++ [req])
     {:ok, req, :nostate}

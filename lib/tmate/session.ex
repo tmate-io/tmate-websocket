@@ -16,7 +16,7 @@ defmodule Tmate.Session do
     state = %{master: master, daemon: daemon,
               id: UUID.uuid1(),
               pending_ws_subs: [], ws_subs: [],
-              slave_protocol_version: -1, daemon_protocol_version: -1,
+              daemon_protocol_version: -1,
               current_layout: [], clients: HashDict.new, next_client_id: 0}
     Logger.metadata(session_id: state.id)
     Process.monitor(daemon_pid(state))
@@ -99,7 +99,7 @@ defmodule Tmate.Session do
     end
   end
 
-  defp handle_ctl_msg(state, [P.tmate_ctl_auth, protocol_version, ip_address, pubkey,
+  defp handle_ctl_msg(state, [P.tmate_ctl_header, 1=_protocol_version, ip_address, pubkey,
                               stoken, stoken_ro]) do
     :ok = Tmate.SessionRegistry.register_session(
             Tmate.SessionRegistry, self, stoken, stoken_ro)
@@ -115,7 +115,56 @@ defmodule Tmate.Session do
 
     delayed_notify_daemon(10 * 1000, "Try the HTML5 client: https://tmate.io/t/#{stoken}")
 
-    %{state | slave_protocol_version: protocol_version}
+    state
+  end
+
+  defp handle_ctl_msg(state, [P.tmate_ctl_header, 2=_protocol_version, ip_address, pubkey,
+                              stoken, stoken_ro, ssh_cmd_fmt,
+                              client_version, client_protocol_version]) do
+    :ok = Tmate.SessionRegistry.register_session(
+            Tmate.SessionRegistry, self, stoken, stoken_ro)
+
+    state = %{state | daemon_protocol_version: client_protocol_version}
+
+    :ok = state.master.emit_event(:session_register, state.id,
+                                  %{ip_address: ip_address, pubkey: pubkey,
+                                    ws_base_url: Tmate.WebSocket.ws_base_url,
+                                    ws_url_fmt: Tmate.WebSocket.ws_url_fmt,
+                                    ssh_cmd_fmt: ssh_cmd_fmt,
+                                    stoken: stoken, stoken_ro: stoken_ro,
+                                    client_version: client_version})
+    watch_session_close(state)
+
+    Logger.metadata([sid: state.id])
+    Logger.info("Session started (#{stoken})")
+
+    ssh_cmd = String.replace(ssh_cmd_fmt, "%s", stoken)
+    ssh_cmd_ro = String.replace(ssh_cmd_fmt, "%s", stoken_ro)
+
+    web_url_fmt = Application.get_env(:tmate, :master)[:session_url_fmt]
+    web_url = String.replace(web_url_fmt, "%s", stoken)
+    web_url_ro = String.replace(web_url_fmt, "%s", stoken_ro)
+
+    notify_daemon(state, "Note: clear your terminal before sharing readonly access")
+    notify_daemon(state, "web session read only: #{web_url_ro}")
+    notify_daemon(state, "ssh session read only: #{ssh_cmd_ro}")
+    notify_daemon(state, "web session: #{web_url}")
+    notify_daemon(state, "ssh session: #{ssh_cmd}")
+
+    daemon_set_env(state, "tmate_web_ro", web_url_ro);
+    daemon_set_env(state, "tmate_ssh_ro", ssh_cmd_ro);
+    daemon_set_env(state, "tmate_web",    web_url);
+    daemon_set_env(state, "tmate_ssh",    ssh_cmd);
+
+    daemon_send_client_ready(state)
+
+    delayed_notify_daemon(10 * 1000, "Try the HTML5 client: #{web_url}")
+
+    if (client_version != "2.2.0") do
+      delayed_notify_daemon(20 * 1000, "Your tmate client can be upgraded to 2.2.0")
+    end
+
+    state
   end
 
   defp handle_ctl_msg(state, [P.tmate_ctl_deamon_out_msg, dmsg]) do
@@ -152,11 +201,6 @@ defmodule Tmate.Session do
   defp handle_ctl_msg(state, [cmd | _]) do
     Logger.error("Unknown message type=#{cmd}")
     state
-  end
-
-  defp handle_daemon_msg(state, [P.tmate_out_header, protocol_version,
-                                  _client_version_string]) do
-    %{state | daemon_protocol_version: protocol_version}
   end
 
   defp handle_daemon_msg(state, [P.tmate_out_sync_layout | layout]) do
@@ -200,6 +244,18 @@ defmodule Tmate.Session do
   defp notify_daemon(state, msg) do
     send_daemon_msg(state, [P.tmate_ctl_deamon_fwd_msg,
                              [P.tmate_in_notify, msg]])
+  end
+
+  defp daemon_set_env(%{daemon_protocol_version: v}, _, _) when v < 4, do: ()
+  defp daemon_set_env(state, key, value) do
+    send_daemon_msg(state, [P.tmate_ctl_deamon_fwd_msg,
+                             [P.tmate_in_set_env, key, value]])
+  end
+
+  defp daemon_send_client_ready(%{daemon_protocol_version: v}) when v < 4, do: ()
+  defp daemon_send_client_ready(state) do
+    send_daemon_msg(state, [P.tmate_ctl_deamon_fwd_msg,
+                             [P.tmate_in_ready]])
   end
 
   defp notify_exec_response(state, exit_code, msg) do

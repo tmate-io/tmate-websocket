@@ -9,4 +9,7 @@ config :tmate, :websocket,
 
 config :logger, level: :debug
 
+config :tmate, :master,
+  session_url_fmt: "https://tmate.io/t/%s"
+
 import_config "prod.secret.exs"

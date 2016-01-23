@@ -14,3 +14,6 @@ config :rollbax,
 
 config :tmate, :daemon,
   port: 4002
+
+config :tmate, :master,
+  session_url_fmt: "http://localhost:4000/t/%s"
