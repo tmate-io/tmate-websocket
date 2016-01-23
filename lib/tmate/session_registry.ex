@@ -41,12 +41,6 @@ defmodule Tmate.SessionRegistry do
   end
 
   def handle_call({:get_session, token}, _from, state) do
-    # Remove "ro-" prefix, it's just sugar.
-    token = case token do
-      "ro-" <> rest -> rest
-      rest -> rest
-    end
-
     cond do
       session = lookup_session(state, :stoken, token) ->
         {:reply, {:rw, session(session, :pid)}, state}
