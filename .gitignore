@@ -2,3 +2,4 @@ _build/
 deps/
 rel/
 config/prod.secret.exs
+.deliver/

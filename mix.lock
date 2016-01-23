@@ -2,6 +2,7 @@
   "certifi": {:hex, :certifi, "0.3.0"},
   "cowboy": {:hex, :cowboy, "1.0.3"},
   "cowlib": {:hex, :cowlib, "1.0.1"},
+  "edeliver": {:hex, :edeliver, "1.1.1"},
   "erlware_commons": {:hex, :erlware_commons, "0.15.0"},
   "exrm": {:hex, :exrm, "1.0.0-rc7"},
   "getopt": {:hex, :getopt, "0.8.2"},
