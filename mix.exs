@@ -29,7 +29,7 @@ defmodule Tmate.Mixfile do
   # Type `mix help deps` for examples and options
   defp deps do
     [
-      {:ranch, "~> 1.1"},
+      {:ranch, "~> 1.0"},
       {:cowboy, "~> 1.0"},
       {:plug, "~> 1.0"},
       {:uuid, "~> 1.1" },
