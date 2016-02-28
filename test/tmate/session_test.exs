@@ -5,7 +5,7 @@ defmodule Tmate.SessionTest do
 
   defmodule Master do
     def ping_master do
-      :pong
+      :ping
     end
 
     def emit_event(_event_type, _entity_id, _params \\ %{}) do

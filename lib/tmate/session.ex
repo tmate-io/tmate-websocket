@@ -17,7 +17,7 @@ defmodule Tmate.Session do
               daemon_protocol_version: -1,
               host_latency: -1,
               current_layout: [], clients: HashDict.new, next_client_id: 0}
-    :pong = master.ping_master
+    :ping = master.ping_master
     Logger.metadata(session_id: state.id)
     Process.monitor(daemon_pid(state))
     {:ok, state}
