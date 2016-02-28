@@ -334,7 +334,9 @@ defmodule Tmate.Session do
   end
 
   defp report_end_to_end_latency(state, _ref, end_to_end_latency) do
-    end_to_end_latency |> ExStatsD.timer("end_to_end_latency")
+    end_to_end_latency
+    |> ExStatsD.timer("#{Tmate.host}.end_to_end_latency")
+    |> ExStatsD.timer("end_to_end_latency")
     state
   end
 
