@@ -4,7 +4,7 @@ defmodule Tmate.WebSocket do
 
   alias :cowboy_req, as: Request
 
-  @ping_interval_sec 30
+  @ping_interval_sec 10
 
   def cowboy_dispatch do
     :cowboy_router.compile([{:_, [
