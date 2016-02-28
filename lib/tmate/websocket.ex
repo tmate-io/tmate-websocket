@@ -4,7 +4,7 @@ defmodule Tmate.WebSocket do
 
   alias :cowboy_req, as: Request
 
-  @ping_interval_sec 60
+  @ping_interval_sec 30
 
   def cowboy_dispatch do
     :cowboy_router.compile([{:_, [
@@ -82,7 +82,7 @@ defmodule Tmate.WebSocket do
                     readonly: [ro: true, rw: false][state.access_mode]}
     :ok = Tmate.Session.ws_request_sub(state.session, self, client_info)
 
-    start_ping_timer
+    start_ping_timer(5000)
     {:ok, req, state}
   end
 
@@ -96,6 +96,8 @@ defmodule Tmate.WebSocket do
   end
 
   def websocket_handle({:pong, _}, req, state) do
+    latency = :erlang.monotonic_time(:milli_seconds) - state.last_ping_at
+    Tmate.Session.notify_latency(state.session, self, latency)
     {:ok, req, state}
   end
 
@@ -103,12 +105,13 @@ defmodule Tmate.WebSocket do
     {:ok, req, state}
   end
 
-  defp start_ping_timer() do
-    :erlang.start_timer(@ping_interval_sec * 1000, self, :ping)
+  defp start_ping_timer(timeout \\ @ping_interval_sec * 1000) do
+    :erlang.start_timer(timeout, self, :ping)
   end
 
   def websocket_info({:timeout, _ref, :ping}, req, state) do
     start_ping_timer
+    state = Map.merge(state, %{last_ping_at: :erlang.monotonic_time(:milli_seconds)})
     {:reply, :ping, req, state}
   end
 

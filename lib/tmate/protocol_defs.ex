@@ -35,6 +35,7 @@ defmodule Tmate.ProtocolDefs do
     tmate_ctl_client_join,
     tmate_ctl_client_left,
     tmate_ctl_exec,
+    tmate_ctl_latency,
   ]
 
   enum tmate_control_in_msg_types, [

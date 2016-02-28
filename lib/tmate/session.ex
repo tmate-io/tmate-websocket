@@ -17,6 +17,7 @@ defmodule Tmate.Session do
               id: UUID.uuid1(),
               pending_ws_subs: [], ws_subs: [],
               daemon_protocol_version: -1,
+              host_latency: -1,
               current_layout: [], clients: HashDict.new, next_client_id: 0}
     Logger.metadata(session_id: state.id)
     Process.monitor(daemon_pid(state))
@@ -56,6 +57,10 @@ defmodule Tmate.Session do
     GenServer.call(session, {:notify_daemon_msg, msg}, :infinity)
   end
 
+  def notify_latency(session, client_id, latency) do
+    GenServer.call(session, {:notify_latency, client_id, latency})
+  end
+
   def handle_call({:ws_request_sub, ws, client}, _from, state) do
     # We'll queue up the subscribers until we get the snapshot
     # so they can get a consistent stream.
@@ -83,6 +88,10 @@ defmodule Tmate.Session do
 
   def handle_call({:notify_daemon_msg, msg}, _from, state) do
     {:reply, :ok, handle_ctl_msg(state, msg)}
+  end
+
+  def handle_call({:notify_latency, client_id, latency}, _from, state) do
+    {:reply, :ok, handle_notify_latency(state, client_id, latency)}
   end
 
   defp watch_session_close(state) do
@@ -169,6 +178,10 @@ defmodule Tmate.Session do
 
   defp handle_ctl_msg(state, [P.tmate_ctl_client_left, client_id]) do
     client_left(state, client_id)
+  end
+
+  defp handle_ctl_msg(state, [P.tmate_ctl_latency, client_id, latency]) do
+    handle_notify_latency(state, client_id, latency)
   end
 
   defp handle_ctl_msg(state, [P.tmate_ctl_exec, username, ip_address, pubkey, command]) do
@@ -306,6 +319,24 @@ defmodule Tmate.Session do
     end
 
     send_daemon_msg(state, [P.tmate_ctl_resize, max_cols, max_rows])
+  end
+
+  defp handle_notify_latency(state, -1, latency) do
+    %{state | host_latency: latency}
+  end
+
+  defp handle_notify_latency(state, ref, latency) do
+    case state.host_latency do
+      -1 -> state
+      host_latency ->
+        end_to_end_latency = latency + host_latency
+        report_end_to_end_latency(state, ref, end_to_end_latency)
+    end
+  end
+
+  defp report_end_to_end_latency(state, ref, end_to_end_latency) do
+    Logger.debug("Client end_to_end latency (ref=#{inspect(ref)}): #{end_to_end_latency}ms")
+    state
   end
 
   defp ssh_exec(state, ["identify", token], username, ip_address, pubkey) do
