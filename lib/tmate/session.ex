@@ -36,10 +36,6 @@ defmodule Tmate.Session do
     end
   end
 
-  def notify_daemon_msg(session, msg) do
-    GenServer.call(session, {:notify_daemon_msg, msg}, :infinity)
-  end
-
   def ws_request_sub(session, ws, client) do
     GenServer.call(session, {:ws_request_sub, ws, client}, :infinity)
   end
@@ -54,6 +50,10 @@ defmodule Tmate.Session do
 
   def notify_resize(session, ws, size) do
     GenServer.call(session, {:notify_resize, ws, size}, :infinity)
+  end
+
+  def notify_daemon_msg(session, msg) do
+    GenServer.call(session, {:notify_daemon_msg, msg}, :infinity)
   end
 
   def handle_call({:ws_request_sub, ws, client}, _from, state) do
@@ -178,8 +178,8 @@ defmodule Tmate.Session do
     state
   end
 
-  defp handle_ctl_msg(state, [cmd | _]) do
-    Logger.error("Unknown message type=#{cmd}")
+  defp handle_ctl_msg(state, msg) do
+    Logger.error("Unknown message type=#{inspect(msg)}")
     state
   end
 
