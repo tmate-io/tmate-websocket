@@ -1,10 +1,19 @@
 defmodule Tmate do
   use Application
 
+  def set_statsd_namespace do
+    short_hostname = node |> to_string |> String.split("@") |> Enum.at(1) |> String.split(".") |> Enum.at(0)
+    namespace = Application.get_env(:ex_statsd, :namespace)
+    new_namespace = "#{namespace}.#{short_hostname}"
+    Application.put_env(:ex_statsd, :namespace, new_namespace)
+    Application.stop(:ex_statsd)
+    Application.start(:ex_statsd)
+  end
+
   def start(_type, _args) do
     import Supervisor.Spec
 
-    Application.put_env(:phoenix, :serve_endpoints, true, persistent: true)
+    set_statsd_namespace
 
     {:ok, daemon_options} = Application.fetch_env(:tmate, :daemon)
     {:ok, websocket_options} = Application.fetch_env(:tmate, :websocket)

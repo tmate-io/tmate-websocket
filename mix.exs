@@ -20,7 +20,7 @@ defmodule Tmate.Mixfile do
     case Mix.env do
       :test -> [mod: {ExUnit, []}, applications: [:logger]]
       _ ->     [mod: {Tmate, []},  applications: [:logger, :ranch, :cowboy,
-                                   :rollbax, :plug, :uuid, :message_pack, :edeliver]]
+                                   :rollbax, :plug, :uuid, :message_pack, :edeliver, :ex_statsd]]
     end
   end
 
@@ -36,6 +36,7 @@ defmodule Tmate.Mixfile do
       {:rollbax, ">= 0.0.0"},
       {:exrm, ">= 0.0.0"},
       {:edeliver, ">= 0.0.0"},
+      {:ex_statsd, ">= 0.0.0"},
       {:message_pack, github: "nviennot/msgpack-elixir"}
     ]
   end

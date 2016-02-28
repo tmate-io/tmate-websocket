@@ -82,7 +82,7 @@ defmodule Tmate.WebSocket do
                     readonly: [ro: true, rw: false][state.access_mode]}
     :ok = Tmate.Session.ws_request_sub(state.session, self, client_info)
 
-    start_ping_timer(5000)
+    start_ping_timer(3000)
     {:ok, req, state}
   end
 

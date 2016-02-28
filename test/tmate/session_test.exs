@@ -4,6 +4,13 @@ defmodule Tmate.SessionTest do
   require Tmate.ProtocolDefs, as: P
 
   defmodule Master do
+    def ping_master do
+      :pong
+    end
+
+    def emit_event(_event_type, _entity_id, _params \\ %{}) do
+      :ok
+    end
   end
 
   defmodule Daemon do
@@ -32,7 +39,7 @@ defmodule Tmate.SessionTest do
   defp spawn_mock_websockets(session, n) do
     (1..n) |> Enum.map fn(i) ->
       pid = spawn fn -> :timer.sleep(:infinity) end
-      Session.ws_request_sub(session, pid, [ip_address: "ip#{i}"])
+      Session.ws_request_sub(session, pid, %{ip_address: "ip#{i}"})
       pid
     end
   end

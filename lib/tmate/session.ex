@@ -11,14 +11,13 @@ defmodule Tmate.Session do
   end
 
   def init({master, daemon}) do
-    :ping = Tmate.MasterEndpoint.ping_master
-
     state = %{master: master, daemon: daemon,
               id: UUID.uuid1(),
               pending_ws_subs: [], ws_subs: [],
               daemon_protocol_version: -1,
               host_latency: -1,
               current_layout: [], clients: HashDict.new, next_client_id: 0}
+    :pong = master.ping_master
     Logger.metadata(session_id: state.id)
     Process.monitor(daemon_pid(state))
     {:ok, state}
@@ -334,8 +333,8 @@ defmodule Tmate.Session do
     end
   end
 
-  defp report_end_to_end_latency(state, ref, end_to_end_latency) do
-    Logger.debug("Client end_to_end latency (ref=#{inspect(ref)}): #{end_to_end_latency}ms")
+  defp report_end_to_end_latency(state, _ref, end_to_end_latency) do
+    end_to_end_latency |> ExStatsD.timer("end_to_end_latency")
     state
   end
 

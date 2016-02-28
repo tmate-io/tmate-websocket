@@ -16,4 +16,7 @@ config :tmate, :daemon,
 config :tmate, :master,
   session_url_fmt: "http://localhost:4000/t/%s"
 
+config :ex_statsd,
+  namespace: 'tmate'
+
 import_config "#{Mix.env}.exs"
