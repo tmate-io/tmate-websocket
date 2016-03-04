@@ -5,14 +5,14 @@ defmodule Tmate.Stats do
   @error 0.005
 
   def new do
-    %{}
+    %{n: 0}
   end
 
-  def insert(%{qe: qe, n: n, s1: s1, s2: s2}=state, value) do
+  def insert(state, value) do
     state
   end
 
-  def has_stats?(%{n: n}), do: false
+  def has_stats?(%{n: n}), do: n >= 2
   def n(%{n: n}), do: n
 
   def median(%{qe: qe}), do: :quantile_estimator.quantile(0.50, qe)
