@@ -15,11 +15,12 @@ defmodule Tmate.Session do
               id: UUID.uuid1(),
               pending_ws_subs: [], ws_subs: [],
               daemon_protocol_version: -1,
-              host_latency: -1,
+              host_latency: -1, host_latency_stats: Tmate.Stats.new,
               current_layout: [], clients: HashDict.new, next_client_id: 0}
     :ping = master.ping_master
     Logger.metadata(session_id: state.id)
     Process.monitor(daemon_pid(state))
+    Process.flag(:trap_exit, true)
     {:ok, state}
   end
 
@@ -34,6 +35,14 @@ defmodule Tmate.Session do
     else
       {:noreply, handle_ws_disconnect(state, pid)}
     end
+  end
+
+  def handle_info({:EXIT, _linked_pid, _reason}, state) do
+    emit_latency_stats(state, -1, state.host_latency_stats)
+    state.clients |> Enum.each fn {_ref, client} ->
+      emit_latency_stats(state, client.id, client.latency_stats)
+    end
+    {:noreply, state}
   end
 
   def ws_request_sub(session, ws, client) do
@@ -258,7 +267,7 @@ defmodule Tmate.Session do
   defp client_join(state, ref, client) do
     client_id = state.next_client_id
     state = %{state | next_client_id: client_id + 1}
-    client = Map.merge(client, %{id: client_id})
+    client = Map.merge(client, %{id: client_id, latency_stats: Tmate.Stats.new})
 
     state = %{state | clients: HashDict.put(state.clients, ref, client)}
     update_client_presence(state, client, true)
@@ -287,13 +296,14 @@ defmodule Tmate.Session do
   end
 
   defp notify_client_presence_master(state, client, false) do
-    :ok = state.master.emit_event(:session_left, state.id, %{id: client[:id]})
+    emit_latency_stats(state, client.id, client.latency_stats)
+    :ok = state.master.emit_event(:session_left, state.id, %{id: client.id})
   end
 
   defp notify_client_presence_daemon(state, client, join) do
     verb = if join, do: 'joined', else: 'left'
     num_clients = HashDict.size(state.clients)
-    msg = "A mate has #{verb} (#{client[:ip_address]}) -- " <>
+    msg = "A mate has #{verb} (#{client.ip_address}) -- " <>
           "#{num_clients} client#{if num_clients > 1, do: 's'} currently connected"
     notify_daemon(state, msg)
   end
@@ -321,7 +331,8 @@ defmodule Tmate.Session do
   end
 
   defp handle_notify_latency(state, -1, latency) do
-    %{state | host_latency: latency}
+    host_latency_stats = Tmate.Stats.insert(state.host_latency_stats, latency)
+    %{state | host_latency: latency, host_latency_stats: host_latency_stats}
   end
 
   defp handle_notify_latency(state, ref, latency) do
@@ -333,11 +344,25 @@ defmodule Tmate.Session do
     end
   end
 
-  defp report_end_to_end_latency(state, _ref, end_to_end_latency) do
+  defp report_end_to_end_latency(state, ref, end_to_end_latency) do
+    client = HashDict.fetch!(state.clients, ref)
+    client = %{client | latency_stats: Tmate.Stats.insert(client.latency_stats, end_to_end_latency)}
+    state = %{state | clients: HashDict.put(state.clients, ref, client)}
+
     end_to_end_latency
     |> ExStatsD.timer("#{Tmate.host}.end_to_end_latency")
     |> ExStatsD.timer("end_to_end_latency")
     state
+  end
+
+  defp emit_latency_stats(state, client_id, stats) do
+    if Tmate.Stats.has_stats?(stats) do
+      latency_stats = [:n, :mean, :stddev, :median, :p90, :p99]
+        |> Enum.reduce(%{}, fn f, acc -> Map.put(acc, f, apply(Tmate.Stats, f, [stats])) end)
+      state.master.emit_event(:session_stats, state.id, %{id: client_id, latency: latency_stats})
+    else
+      :ok
+    end
   end
 
   defp ssh_exec(state, ["identify", token], username, ip_address, pubkey) do

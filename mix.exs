@@ -37,6 +37,7 @@ defmodule Tmate.Mixfile do
       {:exrm, ">= 0.0.0"},
       {:edeliver, ">= 0.0.0"},
       {:ex_statsd, ">= 0.0.0"},
+      {:quantile_estimator, github: "odo/quantile_estimator"},
       {:message_pack, github: "nviennot/msgpack-elixir"}
     ]
   end
