@@ -5,11 +5,27 @@ defmodule Tmate.Stats do
   @error 0.005
 
   def new do
-    %{n: 0}
+    iv = :quantile_estimator.f_targeted(Enum.map(@percentiles, & {&1/100, @error}))
+    %{qe: :quantile_estimator.new(iv),
+      n: 0, s1: 0, s2: 0}
   end
 
-  def insert(state, value) do
-    state
+  def insert(%{qe: qe, n: n, s1: s1, s2: s2}=state, value) do
+    qe = :quantile_estimator.insert(value, qe)
+    if (qe.inserts_since_compression >= @compression_interval) do
+      qe = :quantile_estimator.compress(qe)
+    end
+
+    n  = n + 1
+    s1 = s1 + value
+    s2 = s2 + value*value
+
+    %{state | qe: qe, n: n, s1: s1, s2: s2}
+  end
+
+  def insert(_state, value) do
+    # Legacy code upgrade
+    insert(new, value)
   end
 
   def has_stats?(%{n: n}), do: n >= 2

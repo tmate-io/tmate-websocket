@@ -15,7 +15,7 @@
   "plug": {:hex, :plug, "1.1.2"},
   "poison": {:hex, :poison, "2.1.0"},
   "providers": {:hex, :providers, "1.6.0"},
-  "quantile_estimator": {:git, "https://github.com/odo/quantile_estimator.git", "a68cb3ede050e2a9a451fb28b98e25cd293975a4", []},
+  "quantile_estimator": {:git, "https://github.com/nviennot/quantile_estimator.git", "b06c9782d47ebbdf2fa57aa21429f27749e58bc7", []},
   "ranch": {:hex, :ranch, "1.2.1"},
   "relx": {:hex, :relx, "3.18.0"},
   "rollbax": {:hex, :rollbax, "0.5.3"},

@@ -3,7 +3,7 @@ defmodule Tmate.Mixfile do
 
   def project do
     [app: :tmate,
-     version: "0.0.18",
+     version: "0.0.19",
      elixir: "~> 1.1",
      elixirc_paths: ["lib"],
      compilers: Mix.compilers,
@@ -20,7 +20,8 @@ defmodule Tmate.Mixfile do
     case Mix.env do
       :test -> [mod: {ExUnit, []}, applications: [:logger]]
       _ ->     [mod: {Tmate, []},  applications: [:logger, :ranch, :cowboy,
-                                   :rollbax, :plug, :uuid, :message_pack, :edeliver, :ex_statsd]]
+                                   :rollbax, :plug, :uuid, :message_pack, :edeliver,
+                                   :ex_statsd, :quantile_estimator]]
     end
   end
 
@@ -37,7 +38,7 @@ defmodule Tmate.Mixfile do
       {:exrm, ">= 0.0.0"},
       {:edeliver, ">= 0.0.0"},
       {:ex_statsd, ">= 0.0.0"},
-      {:quantile_estimator, github: "odo/quantile_estimator"},
+      {:quantile_estimator, github: "nviennot/quantile_estimator"},
       {:message_pack, github: "nviennot/msgpack-elixir"}
     ]
   end
