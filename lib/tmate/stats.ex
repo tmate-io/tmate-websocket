@@ -6,8 +6,7 @@ defmodule Tmate.Stats do
 
   def new do
     iv = :quantile_estimator.f_targeted(Enum.map(@percentiles, & {&1/100, @error}))
-    %{qe: :quantile_estimator.new(iv),
-      n: 0, s1: 0, s2: 0}
+    %{qe: :quantile_estimator.new(iv), n: 0, s1: 0, s2: 0}
   end
 
   def insert(%{qe: qe, n: n, s1: s1, s2: s2}=state, value) do
@@ -21,11 +20,6 @@ defmodule Tmate.Stats do
     s2 = s2 + value*value
 
     %{state | qe: qe, n: n, s1: s1, s2: s2}
-  end
-
-  def insert(_state, value) do
-    # Legacy code upgrade
-    insert(new, value)
   end
 
   def has_stats?(%{n: n}), do: n >= 2
