@@ -155,8 +155,6 @@ defmodule Tmate.Session do
 
     daemon_send_client_ready(state)
 
-    delayed_notify_daemon(10 * 1000, "Try the HTML5 client: #{web_url}")
-
     if (client_version != "2.2.0") do
       delayed_notify_daemon(20 * 1000, "Your tmate client can be upgraded to 2.2.0")
     end
