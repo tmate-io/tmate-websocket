@@ -21,7 +21,7 @@ defmodule Tmate.Mixfile do
       :test -> [mod: {ExUnit, []}, applications: [:logger]]
       _ ->     [mod: {Tmate, []},  applications: [:logger, :ranch, :cowboy,
                                    :rollbax, :plug, :uuid, :message_pack, :edeliver,
-                                   :ex_statsd, :quantile_estimator]]
+                                   :ex_statsd, :quantile_estimator, :poison, :httpoison]]
     end
   end
 
@@ -38,6 +38,8 @@ defmodule Tmate.Mixfile do
       {:exrm, ">= 0.0.0"},
       {:edeliver, ">= 0.0.0"},
       {:ex_statsd, ">= 0.0.0"},
+      {:poison, ">= 0.0.0"},
+      {:httpoison, ">= 0.0.0"},
       {:quantile_estimator, github: "nviennot/quantile_estimator"},
       {:message_pack, github: "nviennot/msgpack-elixir"}
     ]

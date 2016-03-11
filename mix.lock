@@ -9,6 +9,7 @@
   "exrm": {:hex, :exrm, "1.0.0"},
   "getopt": {:hex, :getopt, "0.8.2"},
   "hackney": {:hex, :hackney, "1.4.10"},
+  "httpoison": {:hex, :httpoison, "0.8.1"},
   "idna": {:hex, :idna, "1.1.0"},
   "message_pack": {:git, "https://github.com/nviennot/msgpack-elixir.git", "97d791c7dc3ee9324d6af3fbbace88da568b1253", []},
   "mimerl": {:hex, :mimerl, "1.0.2"},

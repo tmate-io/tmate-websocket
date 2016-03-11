@@ -3,16 +3,6 @@ defmodule Tmate.SessionTest do
   alias Tmate.Session
   require Tmate.ProtocolDefs, as: P
 
-  defmodule Master do
-    def ping_master do
-      :ping
-    end
-
-    def emit_event(_event_type, _entity_id, _params \\ %{}) do
-      :ok
-    end
-  end
-
   defmodule Daemon do
     def daemon_pid(pid) do
       pid
@@ -32,7 +22,7 @@ defmodule Tmate.SessionTest do
   end
 
   setup do
-    {:ok, session} = Session.start_link(Master, {Daemon, self})
+    {:ok, session} = Session.start_link(Tmate.MasterEndpoint.Null, Tmate.Webhook.Null, {Daemon, self})
     {:ok, session: session}
   end
 

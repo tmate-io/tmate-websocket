@@ -1,5 +1,8 @@
 use Mix.Config
 
+config :logger, :console,
+  format: "[$level] $message\n"
+
 config :tmate, :websocket,
   listener: :ranch_tcp,
   ranch_opts: [port: 4001],
@@ -10,10 +13,21 @@ config :tmate, :websocket,
     signing_salt: "PlqZqmWt",
     encryption_salt: "vIeLihup"]
 
-config :logger, :console,
-  format: "[$level] $message\n"
-
 config :tmate, :master,
   nodes: [:master]
 
 config :rollbax, enabled: false
+
+config :tmate, :webhook,
+  enabled: false
+
+#### Events only
+
+# config :tmate, :websocket,
+  # enabled: false
+
+# config :tmate, :webhook,
+  # urls: ["http://localhost:4567/events"]
+
+# config :tmate, :master,
+  # session_url_fmt: "disabled"

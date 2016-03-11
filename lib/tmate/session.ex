@@ -6,17 +6,22 @@ defmodule Tmate.Session do
 
   @max_snapshot_lines 300
 
-  def start_link(master, daemon, opts \\ []) do
-    GenServer.start_link(__MODULE__, {master, daemon}, opts)
+  def start_link(master, webhook, daemon, opts \\ []) do
+    GenServer.start_link(__MODULE__, {master, webhook, daemon}, opts)
   end
 
-  def init({master, daemon}) do
-    state = %{master: master, daemon: daemon,
+  def init({master, webhook, daemon}) do
+    {:ok, webhook_options} = Application.fetch_env(:tmate, :webhook)
+    {:ok, webhook_pid} = webhook.start_link(webhook_options[:urls])
+
+    state = %{master: master, webhook: webhook, daemon: daemon,
+              webhook_pid: webhook_pid,
               id: UUID.uuid1(),
               pending_ws_subs: [], ws_subs: [],
               daemon_protocol_version: -1,
               host_latency: -1, host_latency_stats: Tmate.Stats.new,
               current_layout: [], clients: HashDict.new, next_client_id: 0}
+
     :ping = master.ping_master
     Logger.metadata(session_id: state.id)
     Process.monitor(daemon_pid(state))
@@ -102,16 +107,21 @@ defmodule Tmate.Session do
     {:reply, :ok, handle_notify_latency(state, client_id, latency)}
   end
 
+  defp emit_event(state, event_type, params \\ %{}) do
+    state.webhook.emit_event(state.webhook_pid, event_type, state.id, params)
+    state.master.emit_event(event_type, state.id, params)
+  end
+
   defp watch_session_close(state) do
     current = self
-    master = state.master
-    id = state.id
+    Process.unlink(state.webhook_pid)
 
     _pid = spawn fn ->
+      Process.link(state.webhook_pid)
       ref = Process.monitor(current)
       receive do
         {:DOWN, ^ref, _type, _pid, _info} ->
-          :ok = master.emit_event(:session_close, id)
+          emit_event(state, :session_close)
       end
     end
   end
@@ -123,13 +133,12 @@ defmodule Tmate.Session do
             Tmate.SessionRegistry, self, stoken, stoken_ro)
 
     state = %{state | daemon_protocol_version: client_protocol_version}
+    web_url_fmt = Application.get_env(:tmate, :master)[:session_url_fmt]
 
-    :ok = state.master.emit_event(:session_register, state.id,
-                                  %{ip_address: ip_address, pubkey: pubkey,
-                                    ws_url_fmt: Tmate.WebSocket.ws_url_fmt,
-                                    ssh_cmd_fmt: ssh_cmd_fmt,
-                                    stoken: stoken, stoken_ro: stoken_ro,
-                                    client_version: client_version})
+    emit_event(state, :session_register,
+               %{ip_address: ip_address, pubkey: pubkey,
+                 ws_url_fmt: Tmate.WebSocket.ws_url_fmt, web_url_fmt: web_url_fmt, ssh_cmd_fmt: ssh_cmd_fmt,
+                 stoken: stoken, stoken_ro: stoken_ro, client_version: client_version})
     watch_session_close(state)
 
     Logger.metadata([sid: state.id])
@@ -138,7 +147,6 @@ defmodule Tmate.Session do
     ssh_cmd = String.replace(ssh_cmd_fmt, "%s", stoken)
     ssh_cmd_ro = String.replace(ssh_cmd_fmt, "%s", stoken_ro)
 
-    web_url_fmt = Application.get_env(:tmate, :master)[:session_url_fmt]
     web_url = String.replace(web_url_fmt, "%s", stoken)
     web_url_ro = String.replace(web_url_fmt, "%s", stoken_ro)
 
@@ -290,12 +298,12 @@ defmodule Tmate.Session do
 
   defp notify_client_presence_master(state, client, true) do
     {client_info, _} = Map.split(client, [:id, :type, :ip_address, :identity, :readonly])
-    :ok = state.master.emit_event(:session_join, state.id, client_info)
+    emit_event(state, :session_join, client_info)
   end
 
   defp notify_client_presence_master(state, client, false) do
     emit_latency_stats(state, client.id, client.latency_stats)
-    :ok = state.master.emit_event(:session_left, state.id, %{id: client.id})
+    emit_event(state, :session_left, %{id: client.id})
   end
 
   defp notify_client_presence_daemon(state, client, join) do
@@ -357,10 +365,9 @@ defmodule Tmate.Session do
     if Tmate.Stats.has_stats?(stats) do
       latency_stats = [:n, :mean, :stddev, :median, :p90, :p99]
         |> Enum.reduce(%{}, fn f, acc -> Map.put(acc, f, apply(Tmate.Stats, f, [stats])) end)
-      state.master.emit_event(:session_stats, state.id, %{id: client_id, latency: latency_stats})
-    else
-      :ok
+      emit_event(state, :session_stats, %{id: client_id, latency: latency_stats})
     end
+    :ok
   end
 
   defp ssh_exec(state, ["identify", token], username, ip_address, pubkey) do
