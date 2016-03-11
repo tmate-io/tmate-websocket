@@ -31,8 +31,11 @@ defmodule Tmate.SessionRegistry do
   end
 
   def handle_call({:new_session, daemon_args}, _from, state) do
+    {:ok, master_options} = Application.fetch_env(:tmate, :master)
+    master_endpoint = if master_options[:nodes], do: Tmate.MasterEndpoint,
+                                               else: Tmate.MasterEndpoint.Null
     result = Tmate.SessionSupervisor.start_session(state.supervisor,
-               [Tmate.MasterEndpoint, daemon_args])
+               [master_endpoint, daemon_args])
     {:reply, result, state}
   end
 

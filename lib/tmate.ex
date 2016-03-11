@@ -11,15 +11,19 @@ defmodule Tmate do
     {:ok, daemon_options} = Application.fetch_env(:tmate, :daemon)
     {:ok, websocket_options} = Application.fetch_env(:tmate, :websocket)
 
-    cowboy_opts = [env: [dispatch: Tmate.WebSocket.cowboy_dispatch], compress: true]
-
     children = [
       :ranch.child_spec(:daemon_tcp, 3, :ranch_tcp, daemon_options,
                         Tmate.DaemonTcp, []),
-      :ranch.child_spec(:websocket_tcp, 3, websocket_options[:listener], websocket_options[:ranch_opts],
-                        :cowboy_protocol, cowboy_opts),
       worker(Tmate.SessionRegistry, [[name: Tmate.SessionRegistry]]),
     ]
+
+    unless websocket_options[:enabled] == false do
+      cowboy_opts = [env: [dispatch: Tmate.WebSocket.cowboy_dispatch], compress: true]
+      children = children ++ [
+        :ranch.child_spec(:websocket_tcp, 3, websocket_options[:listener], websocket_options[:ranch_opts],
+                          :cowboy_protocol, cowboy_opts)
+      ]
+    end
 
     Supervisor.start_link(children, [strategy: :one_for_one, name: Tmate.Supervisor])
   end

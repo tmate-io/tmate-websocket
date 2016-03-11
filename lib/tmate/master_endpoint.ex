@@ -1,4 +1,9 @@
 defmodule Tmate.MasterEndpoint do
+  defmodule Null do
+    def emit_event(_, _, _ \\ %{}), do: :ok
+    def ping_master, do: :ping
+  end
+
   def emit_event(event_type, entity_id, params \\ %{}) do
     call_master({:event, current_timestamp, event_type, entity_id, params})
   end
@@ -25,7 +30,7 @@ defmodule Tmate.MasterEndpoint do
     end
   end
 
-  def call_master_once(args) do
+  defp call_master_once(args) do
     case :pg2.get_closest_pid(pg2_namespace) do
       {:error, err} -> {:error, err}
       pid ->
@@ -40,7 +45,7 @@ defmodule Tmate.MasterEndpoint do
     end
   end
 
-  def call_master(args, tries \\ 10, retry_timeout \\ 500) do
+  defp call_master(args, tries \\ 10, retry_timeout \\ 500) do
     case call_master_once(args) do
       {:reply, ret} -> ret
       {:error, err} ->
