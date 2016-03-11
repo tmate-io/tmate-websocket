@@ -55,6 +55,8 @@ defmodule Tmate.ProtocolDefs do
     tmate_out_status,
     tmate_out_sync_copy_mode,
     tmate_out_write_copy_mode,
+    tmate_out_fin,
+    tmate_out_ready,
   ]
 
   enum tmate_daemon_in_msg_types, [

@@ -11,11 +11,8 @@ defmodule Tmate.Session do
   end
 
   def init({master, webhook, daemon}) do
-    {:ok, webhook_options} = Application.fetch_env(:tmate, :webhook)
-    {:ok, webhook_pid} = webhook.start_link(webhook_options[:urls])
-
     state = %{master: master, webhook: webhook, daemon: daemon,
-              webhook_pid: webhook_pid,
+              init_state: nil, webhook_pid: nil,
               id: UUID.uuid1(),
               pending_ws_subs: [], ws_subs: [],
               daemon_protocol_version: -1,
@@ -126,22 +123,22 @@ defmodule Tmate.Session do
     end
   end
 
-  defp handle_ctl_msg(state, [P.tmate_ctl_header, 2=_protocol_version, ip_address, pubkey,
-                              stoken, stoken_ro, ssh_cmd_fmt,
-                              client_version, client_protocol_version]) do
+  defp finalize_session_init(%{init_state: %{stoken: stoken, stoken_ro: stoken_ro,
+                               ssh_cmd_fmt: ssh_cmd_fmt, client_version: client_version}}=state) do
     :ok = Tmate.SessionRegistry.register_session(
             Tmate.SessionRegistry, self, stoken, stoken_ro)
 
-    state = %{state | daemon_protocol_version: client_protocol_version}
-    web_url_fmt = Application.get_env(:tmate, :master)[:session_url_fmt]
+    {:ok, webhook_options} = Application.fetch_env(:tmate, :webhook)
+    {:ok, webhook_pid} = state.webhook.start_link(webhook_options[:urls])
 
-    emit_event(state, :session_register,
-               %{ip_address: ip_address, pubkey: pubkey,
-                 ws_url_fmt: Tmate.WebSocket.ws_url_fmt, web_url_fmt: web_url_fmt, ssh_cmd_fmt: ssh_cmd_fmt,
-                 stoken: stoken, stoken_ro: stoken_ro, client_version: client_version})
+    state = %{state | webhook_pid: webhook_pid}
+
+    web_url_fmt = Application.get_env(:tmate, :master)[:session_url_fmt]
+    event_payload = Map.merge(state.init_state, %{ws_url_fmt: Tmate.WebSocket.ws_url_fmt, web_url_fmt: web_url_fmt})
+    emit_event(state, :session_register, event_payload)
+
     watch_session_close(state)
 
-    Logger.metadata([sid: state.id])
     Logger.info("Session started (#{stoken})")
 
     ssh_cmd = String.replace(ssh_cmd_fmt, "%s", stoken)
@@ -156,10 +153,10 @@ defmodule Tmate.Session do
     notify_daemon(state, "web session: #{web_url}")
     notify_daemon(state, "ssh session: #{ssh_cmd}")
 
-    daemon_set_env(state, "tmate_web_ro", web_url_ro);
-    daemon_set_env(state, "tmate_ssh_ro", ssh_cmd_ro);
-    daemon_set_env(state, "tmate_web",    web_url);
-    daemon_set_env(state, "tmate_ssh",    ssh_cmd);
+    daemon_set_env(state, "tmate_web_ro", web_url_ro)
+    daemon_set_env(state, "tmate_ssh_ro", ssh_cmd_ro)
+    daemon_set_env(state, "tmate_web",    web_url)
+    daemon_set_env(state, "tmate_ssh",    ssh_cmd)
 
     daemon_send_client_ready(state)
 
@@ -167,7 +164,23 @@ defmodule Tmate.Session do
       delayed_notify_daemon(20 * 1000, "Your tmate client can be upgraded to 2.2.0")
     end
 
-    state
+    %{state | init_state: nil}
+  end
+
+  defp handle_ctl_msg(state, [P.tmate_ctl_header, 2=_protocol_version, ip_address, pubkey,
+                              stoken, stoken_ro, ssh_cmd_fmt,
+                              client_version, daemon_protocol_version]) do
+    init_state = %{ip_address: ip_address, pubkey: pubkey, stoken: stoken, stoken_ro: stoken_ro,
+                   client_version: client_version, ssh_cmd_fmt: ssh_cmd_fmt}
+
+    state = %{state | daemon_protocol_version: daemon_protocol_version, init_state: init_state}
+
+    if daemon_protocol_version >= 6 do
+      state
+    else
+      # we'll finalize when we get the ready message
+      finalize_session_init(state)
+    end
   end
 
   defp handle_ctl_msg(state, [P.tmate_ctl_deamon_out_msg, dmsg]) do
@@ -214,8 +227,30 @@ defmodule Tmate.Session do
     %{state | current_layout: layout}
   end
 
+
+  defp handle_daemon_msg(state, [P.tmate_out_ready]) do
+    finalize_session_init(state)
+  end
+
+  defp handle_daemon_msg(state, [P.tmate_out_exec_cmd, cmd]) do
+    handle_daemon_exec_cmd(state, cmd)
+  end
+
   defp handle_daemon_msg(state, _msg) do
-    # TODO
+    state
+  end
+
+  defp handle_daemon_exec_cmd(state, "set-option -g tmate-webhook-userdata " <> webhook_userdata) do
+    Logger.debug("webhook-userdata: #{webhook_userdata}")
+    state
+  end
+
+  defp handle_daemon_exec_cmd(state, "set-option -g tmate-webhook-url " <> webhook_url) do
+    Logger.debug("webhook-url: #{webhook_url}")
+    state
+  end
+
+  defp handle_daemon_exec_cmd(state, _cmd) do
     state
   end
 
