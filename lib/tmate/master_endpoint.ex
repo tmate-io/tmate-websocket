@@ -14,7 +14,7 @@ defmodule Tmate.MasterEndpoint do
 
   def ping_master do
     {:ok, master_options} = Application.fetch_env(:tmate, :master)
-    results = master_options[:nodes] |> Enum.map fn(name) ->
+    results = master_options[:nodes] |> Enum.map(fn(name) ->
       name = name |> to_string
       if String.contains?(name, "@") do
         Node.ping(name |> String.to_atom)
@@ -22,7 +22,7 @@ defmodule Tmate.MasterEndpoint do
         host = node |> to_string |> String.split("@") |> Enum.at(1)
         Node.ping("#{name}@#{host}" |> String.to_atom)
       end
-    end
+    end)
 
     case results |> Enum.any?(& &1 == :pong) do
       false -> :pang

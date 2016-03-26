@@ -5,6 +5,7 @@ defmodule Tmate.Session do
   require Logger
 
   @max_snapshot_lines 300
+  @latest_version "2.2.0"
 
   def start_link(master, webhook, daemon, opts \\ []) do
     GenServer.start_link(__MODULE__, {master, webhook, daemon}, opts)
@@ -13,15 +14,16 @@ defmodule Tmate.Session do
   def init({master, webhook, daemon}) do
     state = %{master: master, webhook: webhook, daemon: daemon,
               init_state: nil, webhook_pid: nil,
-              id: UUID.uuid1(),
               pending_ws_subs: [], ws_subs: [],
               daemon_protocol_version: -1,
               host_latency: -1, host_latency_stats: Tmate.Stats.new,
               current_layout: [], clients: HashDict.new, next_client_id: 0}
 
-    :ping = master.ping_master
-    Logger.metadata(session_id: state.id)
-    Process.monitor(daemon_pid(state))
+    case master.ping_master do
+      :ping -> nil
+      _ -> Logger.error("Cannot ping master")
+    end
+
     Process.flag(:trap_exit, true)
     {:ok, state}
   end
@@ -32,19 +34,15 @@ defmodule Tmate.Session do
   end
 
   def handle_info({:DOWN, _ref, _type, pid, _info}, state) do
-    if daemon_pid(state) == pid do
-      {:stop, :normal, state}
-    else
-      {:noreply, handle_ws_disconnect(state, pid)}
-    end
+    {:noreply, handle_ws_disconnect(state, pid)}
   end
 
-  def handle_info({:EXIT, _linked_pid, _reason}, state) do
+  def handle_info({:EXIT, _linked_pid, reason}, state) do
     emit_latency_stats(state, -1, state.host_latency_stats)
-    state.clients |> Enum.each fn {_ref, client} ->
+    state.clients |> Enum.each(fn {_ref, client} ->
       emit_latency_stats(state, client.id, client.latency_stats)
-    end
-    {:noreply, state}
+    end)
+    {:stop, reason, state}
   end
 
   def ws_request_sub(session, ws, client) do
@@ -106,25 +104,61 @@ defmodule Tmate.Session do
 
   defp emit_event(state, event_type, params \\ %{}) do
     state.webhook.emit_event(state.webhook_pid, event_type, state.id, params)
-    state.master.emit_event(event_type, state.id, params)
+    :ok = state.master.emit_event(event_type, state.id, params)
   end
 
-  defp watch_session_close(state) do
-    current = self
-    Process.unlink(state.webhook_pid)
+  def pack_and_sign!(value) do
+    {:ok, daemon_options} = Application.fetch_env(:tmate, :daemon)
 
-    _pid = spawn fn ->
-      Process.link(state.webhook_pid)
-      ref = Process.monitor(current)
-      receive do
-        {:DOWN, ^ref, _type, _pid, _info} ->
-          emit_event(state, :session_close)
-      end
+    value
+    |> MessagePack.pack!
+    |> (& [&1, :crypto.hmac(:sha256, daemon_options[:hmac_key], &1)]).()
+    |> Enum.map(&Base.encode64/1)
+    |> Enum.join("|")
+  end
+
+  def verify_and_unpack!(value) do
+    {:ok, daemon_options} = Application.fetch_env(:tmate, :daemon)
+
+    value
+    |> String.split("|")
+    |> Enum.map(&Base.decode64!/1)
+    |> fn [data, received_signature] ->
+      ^received_signature = :crypto.hmac(:sha256, daemon_options[:hmac_key], data)
+      data
+    end.()
+    |> MessagePack.unpack!
+  end
+
+  defp rename_tmux_sockets!(old_stoken, old_stoken_ro, stoken, stoken_ro) do
+    {:ok, daemon_options} = Application.fetch_env(:tmate, :daemon)
+    p = fn filename -> Path.join(daemon_options[:tmux_socket_path], filename) end
+
+    :ok = File.rename(p.(old_stoken), p.(stoken))
+    File.rm(p.(old_stoken_ro))
+    File.rm(p.(stoken_ro))
+    :ok = File.ln_s(p.(stoken), p.(stoken_ro))
+  end
+
+  defp finalize_session_init(%{init_state: %{ip_address: ip_address, pubkey: pubkey, stoken: stoken,
+      stoken_ro: stoken_ro, ssh_cmd_fmt: ssh_cmd_fmt,
+      client_version: client_version, reconnection_data: reconnection_data}}=state) do
+    old_stoken = stoken
+    old_stoken_ro = stoken_ro
+
+    [reconnected, id, stoken, stoken_ro, old_host] = case reconnection_data do
+      nil -> [false, UUID.uuid1, stoken, stoken_ro, nil]
+      rdata -> [true | rdata |> verify_and_unpack!]
     end
-  end
 
-  defp finalize_session_init(%{init_state: %{stoken: stoken, stoken_ro: stoken_ro,
-                               ssh_cmd_fmt: ssh_cmd_fmt, client_version: client_version}}=state) do
+    if old_stoken != stoken || old_stoken_ro != stoken_ro do
+      rename_tmux_sockets!(old_stoken, old_stoken_ro, stoken, stoken_ro)
+      send_daemon_msg(state, [P.tmate_ctl_rename_session, stoken, stoken_ro])
+    end
+
+    state = Map.merge(state, %{id: id})
+    Logger.metadata(session_id: state.id)
+
     :ok = Tmate.SessionRegistry.register_session(
             Tmate.SessionRegistry, self, stoken, stoken_ro)
 
@@ -134,12 +168,13 @@ defmodule Tmate.Session do
     state = %{state | webhook_pid: webhook_pid}
 
     web_url_fmt = Application.get_env(:tmate, :master)[:session_url_fmt]
-    event_payload = Map.merge(state.init_state, %{ws_url_fmt: Tmate.WebSocket.ws_url_fmt, web_url_fmt: web_url_fmt})
+    event_payload = %{ip_address: ip_address, pubkey: pubkey, client_version: client_version,
+                      stoken: stoken, stoken_ro: stoken_ro, reconnected: reconnected,
+                      ssh_cmd_fmt: ssh_cmd_fmt, ws_url_fmt: Tmate.WebSocket.ws_url_fmt,
+                      web_url_fmt: web_url_fmt}
+
+    Logger.info("Session #{if reconnected, do: "reconnected", else: "started"} (#{stoken})")
     emit_event(state, :session_register, event_payload)
-
-    watch_session_close(state)
-
-    Logger.info("Session started (#{stoken})")
 
     ssh_cmd = String.replace(ssh_cmd_fmt, "%s", stoken)
     ssh_cmd_ro = String.replace(ssh_cmd_fmt, "%s", stoken_ro)
@@ -147,31 +182,42 @@ defmodule Tmate.Session do
     web_url = String.replace(web_url_fmt, "%s", stoken)
     web_url_ro = String.replace(web_url_fmt, "%s", stoken_ro)
 
-    notify_daemon(state, "Note: clear your terminal before sharing readonly access")
-    notify_daemon(state, "web session read only: #{web_url_ro}")
-    notify_daemon(state, "ssh session read only: #{ssh_cmd_ro}")
-    notify_daemon(state, "web session: #{web_url}")
-    notify_daemon(state, "ssh session: #{ssh_cmd}")
+    if old_host != Tmate.host do
+      if old_host, do: notify_daemon(state, "The session has been reconnected to another server");
+      notify_daemon(state, "Note: clear your terminal before sharing readonly access")
+      notify_daemon(state, "web session read only: #{web_url_ro}")
+      notify_daemon(state, "ssh session read only: #{ssh_cmd_ro}")
+      notify_daemon(state, "web session: #{web_url}")
+      notify_daemon(state, "ssh session: #{ssh_cmd}")
+    else
+      notify_daemon(state, "Reconnected")
+    end
 
     daemon_set_env(state, "tmate_web_ro", web_url_ro)
     daemon_set_env(state, "tmate_ssh_ro", ssh_cmd_ro)
     daemon_set_env(state, "tmate_web",    web_url)
     daemon_set_env(state, "tmate_ssh",    ssh_cmd)
 
+    daemon_set_env(state, "tmate_reconnection_data",
+                  [id, stoken, stoken_ro, Tmate.host] |> pack_and_sign!)
+
     daemon_send_client_ready(state)
 
-    if (client_version != "2.2.0") do
-      delayed_notify_daemon(20 * 1000, "Your tmate client can be upgraded to 2.2.0")
-    end
+    maybe_notice_version_upgrade(client_version)
 
     %{state | init_state: nil}
+  end
+
+  defp maybe_notice_version_upgrade(@latest_version), do: nil
+  defp maybe_notice_version_upgrade(_client_version) do
+    delayed_notify_daemon(20 * 1000, "Your tmate client can be upgraded to #{@latest_version}")
   end
 
   defp handle_ctl_msg(state, [P.tmate_ctl_header, 2=_protocol_version, ip_address, pubkey,
                               stoken, stoken_ro, ssh_cmd_fmt,
                               client_version, daemon_protocol_version]) do
     init_state = %{ip_address: ip_address, pubkey: pubkey, stoken: stoken, stoken_ro: stoken_ro,
-                   client_version: client_version, ssh_cmd_fmt: ssh_cmd_fmt}
+                   client_version: client_version, ssh_cmd_fmt: ssh_cmd_fmt, reconnection_data: nil}
 
     state = %{state | daemon_protocol_version: daemon_protocol_version, init_state: init_state}
 
@@ -232,6 +278,15 @@ defmodule Tmate.Session do
     finalize_session_init(state)
   end
 
+  defp handle_daemon_msg(state, [P.tmate_out_reconnect, reconnection_data]) do
+    %{state | init_state: %{state.init_state | reconnection_data: reconnection_data}}
+  end
+
+  defp handle_daemon_msg(state, [P.tmate_out_fin]) do
+    emit_event(state, :session_close)
+    state
+  end
+
   defp handle_daemon_msg(state, [P.tmate_out_exec_cmd, cmd]) do
     handle_daemon_exec_cmd(state, cmd)
   end
@@ -267,11 +322,6 @@ defmodule Tmate.Session do
     # This might be problematic.
     # TODO We might want to serialize the msg here to avoid doing it N times.
     for ws <- ws_list, do: Tmate.WebSocket.send_msg(ws, msg)
-  end
-
-  defp daemon_pid(state) do
-    {transport, handle} = state.daemon
-    transport.daemon_pid(handle)
   end
 
   defp send_daemon_msg(state, msg) do

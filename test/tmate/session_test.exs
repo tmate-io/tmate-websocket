@@ -17,24 +17,32 @@ defmodule Tmate.SessionTest do
     receive do
       _ -> flush
     after
-      0 ->
+      0 -> nil
     end
   end
 
   setup do
+    import Supervisor.Spec
+    children = [worker(Tmate.SessionRegistry, [[name: Tmate.SessionRegistry]])]
+    Supervisor.start_link(children, [strategy: :one_for_one, name: Tmate.Supervisor])
+
     {:ok, session} = Session.start_link(Tmate.MasterEndpoint.Null, Tmate.Webhook.Null, {Daemon, self})
     {:ok, session: session}
   end
 
   defp spawn_mock_websockets(session, n) do
-    (1..n) |> Enum.map fn(i) ->
+    (1..n) |> Enum.map(fn(i) ->
       pid = spawn fn -> :timer.sleep(:infinity) end
       Session.ws_request_sub(session, pid, %{ip_address: "ip#{i}"})
       pid
-    end
+    end)
   end
 
   test "client resizing", %{session: session} do
+    Session.notify_daemon_msg(session, [P.tmate_ctl_header, 2,
+                              "ip", "pubkey", "stoken", "stoken_ro", "ssh_cmd_fmt",
+                              "client_version", 1])
+
     ws = spawn_mock_websockets(session, 3)
 
     refute_received {:daemon_msg, [P.tmate_ctl_resize | _]}

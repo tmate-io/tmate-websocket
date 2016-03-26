@@ -12,7 +12,7 @@ defmodule Tmate do
     {:ok, websocket_options} = Application.fetch_env(:tmate, :websocket)
 
     children = [
-      :ranch.child_spec(:daemon_tcp, 3, :ranch_tcp, daemon_options,
+      :ranch.child_spec(:daemon_tcp, 3, :ranch_tcp, daemon_options[:ranch_opts],
                         Tmate.DaemonTcp, []),
       worker(Tmate.SessionRegistry, [[name: Tmate.SessionRegistry]]),
     ]

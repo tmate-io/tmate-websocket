@@ -15,7 +15,9 @@ config :rollbax,
   access_token: "XXX"
 
 config :tmate, :daemon,
-  port: 4002
+  ranch_opts: [port: 4002],
+  hmac_key: "key",
+  tmux_socket_path: "/tmp/tmate/sessions"
 
 config :tmate, :master,
   session_url_fmt: "http://localhost:4000/t/%s"

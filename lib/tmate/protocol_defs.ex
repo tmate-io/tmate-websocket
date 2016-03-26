@@ -6,9 +6,9 @@ defmodule Tmate.ProtocolDefs.Define do
   end
 
   defmacro enum(_enum_name, values) do
-    values |> Enum.with_index |> Enum.map fn {name, index} ->
+    values |> Enum.with_index |> Enum.map(fn {name, index} ->
       quote do: (defmacro unquote(name), do: unquote(index))
-    end
+    end)
   end
 end
 
@@ -44,6 +44,7 @@ defmodule Tmate.ProtocolDefs do
     tmate_ctl_pane_keys,
     tmate_ctl_resize,
     tmate_ctl_exec_response,
+    tmate_ctl_rename_session,
   ]
 
   enum tmate_daemon_out_msg_types, [
@@ -57,6 +58,8 @@ defmodule Tmate.ProtocolDefs do
     tmate_out_write_copy_mode,
     tmate_out_fin,
     tmate_out_ready,
+    tmate_out_reconnect,
+    tmate_out_snapshot,
   ]
 
   enum tmate_daemon_in_msg_types, [

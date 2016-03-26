@@ -3,7 +3,7 @@ defmodule Tmate.SessionRegistry do
   require Logger
 
   require Record
-  Record.defrecord :session, [:stoken, :stoken_ro, :pid]
+  Record.defrecord :session, [:stoken, :stoken_ro, :pid, :monitor]
 
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, :ok, opts)
@@ -27,7 +27,7 @@ defmodule Tmate.SessionRegistry do
   end
 
   defmacrop lookup_session(state, what, token) do
-    quote do: :lists.keyfind(unquote(token), session(unquote(what))+1, unquote(state).sessions)
+    quote do: List.keyfind(unquote(state).sessions, unquote(token), session(unquote(what)))
   end
 
   def handle_call({:new_session, daemon_args}, _from, state) do
@@ -58,17 +58,18 @@ defmodule Tmate.SessionRegistry do
   end
 
   defp add_session(state, pid, stoken, stoken_ro) do
-    if lookup_session(state, :stoken,    stoken   ) ||
-       lookup_session(state, :stoken,    stoken_ro) ||
-       lookup_session(state, :stoken_ro, stoken_ro) ||
-       lookup_session(state, :stoken_ro, stoken   ) do
-         # This should never happen, but we are never too careful.
-         raise "Session token already registered: #{stoken}"
+    if s = lookup_session(state, :stoken,    stoken   ) ||
+           lookup_session(state, :stoken,    stoken_ro) ||
+           lookup_session(state, :stoken_ro, stoken_ro) ||
+           lookup_session(state, :stoken_ro, stoken   ) do
+      Logger.info("Removing stale session (#{stoken})")
+      state = kill_session(state, s)
+      add_session(state, pid, stoken, stoken_ro)
+    else
+      monitor = Process.monitor(pid)
+      new_session = session(stoken: stoken, stoken_ro: stoken_ro, pid: pid, monitor: monitor)
+      %{state | sessions: [new_session | state.sessions]}
     end
-
-    Process.monitor(pid)
-    new_session = session(stoken: stoken, stoken_ro: stoken_ro, pid: pid)
-    %{state | sessions: [new_session | state.sessions]}
   end
 
   def handle_info({:DOWN, _ref, _type, pid, _info}, state) do
@@ -76,6 +77,12 @@ defmodule Tmate.SessionRegistry do
   end
 
   defp cleanup_session(state, pid) do
-    %{state | sessions: :lists.keydelete(pid, session(:pid)+1, state.sessions)}
+    %{state | sessions: List.keydelete(state.sessions, pid, session(:pid))}
+  end
+
+  defp kill_session(state, session) do
+    Process.demonitor(session(session, :monitor), [:flush])
+    Process.exit(session(session, :pid), :stale)
+    cleanup_session(state, session(session, :pid))
   end
 end

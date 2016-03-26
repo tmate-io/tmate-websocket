@@ -5,3 +5,6 @@ config :logger, :console,
   format: "[$level] $message\n"
 
 config :rollbax, enabled: false
+
+config :tmate, :websocket,
+  enabled: false
