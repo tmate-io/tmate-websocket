@@ -19,11 +19,7 @@ defmodule Tmate.Session do
               host_latency: -1, host_latency_stats: Tmate.Stats.new,
               current_layout: [], clients: HashDict.new, next_client_id: 0}
 
-    case master.ping_master do
-      :ping -> nil
-      _ -> Logger.error("Cannot ping master")
-    end
-
+    :ping = master.ping_master
     Process.flag(:trap_exit, true)
     {:ok, state}
   end
@@ -137,7 +133,7 @@ defmodule Tmate.Session do
     :ok = File.rename(p.(old_stoken), p.(stoken))
     File.rm(p.(old_stoken_ro))
     File.rm(p.(stoken_ro))
-    :ok = File.ln_s(p.(stoken), p.(stoken_ro))
+    :ok = File.ln_s(stoken, p.(stoken_ro))
   end
 
   defp finalize_session_init(%{init_state: %{ip_address: ip_address, pubkey: pubkey, stoken: stoken,
