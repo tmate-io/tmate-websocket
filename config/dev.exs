@@ -3,6 +3,9 @@ use Mix.Config
 config :logger, :console,
   format: "[$level] $message\n"
 
+config :tmate, :daemon,
+  hmac_key: "key"
+
 config :tmate, :websocket,
   listener: :ranch_tcp,
   ranch_opts: [port: 4001],

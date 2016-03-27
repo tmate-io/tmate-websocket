@@ -8,3 +8,6 @@ config :rollbax, enabled: false
 
 config :tmate, :websocket,
   enabled: false
+
+config :tmate, :daemon,
+  hmac_key: "key"
