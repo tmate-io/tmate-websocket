@@ -178,16 +178,13 @@ defmodule Tmate.Session do
     web_url = String.replace(web_url_fmt, "%s", stoken)
     web_url_ro = String.replace(web_url_fmt, "%s", stoken_ro)
 
-    if old_host != Tmate.host do
-      if old_host, do: notify_daemon(state, "The session has been reconnected to another server");
-      notify_daemon(state, "Note: clear your terminal before sharing readonly access")
-      notify_daemon(state, "web session read only: #{web_url_ro}")
-      notify_daemon(state, "ssh session read only: #{ssh_cmd_ro}")
-      notify_daemon(state, "web session: #{web_url}")
-      notify_daemon(state, "ssh session: #{ssh_cmd}")
-    else
-      notify_daemon(state, "Reconnected")
-    end
+    if reconnected && old_host != Tmate.host, do: notify_daemon(state, "The session has been reconnected to another server");
+    notify_daemon(state, "Note: clear your terminal before sharing readonly access")
+    notify_daemon(state, "web session read only: #{web_url_ro}")
+    notify_daemon(state, "ssh session read only: #{ssh_cmd_ro}")
+    notify_daemon(state, "web session: #{web_url}")
+    notify_daemon(state, "ssh session: #{ssh_cmd}")
+    if reconnected && old_host == Tmate.host, do: notify_daemon(state, "Reconnected");
 
     daemon_set_env(state, "tmate_web_ro", web_url_ro)
     daemon_set_env(state, "tmate_ssh_ro", ssh_cmd_ro)
