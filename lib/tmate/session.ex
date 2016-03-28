@@ -17,7 +17,7 @@ defmodule Tmate.Session do
               pending_ws_subs: [], ws_subs: [],
               daemon_protocol_version: -1,
               host_latency: -1, host_latency_stats: Tmate.Stats.new,
-              current_layout: [], clients: HashDict.new, next_client_id: 0}
+              current_layout: [], clients: HashDict.new}
 
     :ping = master.ping_master
     Process.flag(:trap_exit, true)
@@ -34,7 +34,7 @@ defmodule Tmate.Session do
   end
 
   def handle_info({:EXIT, _linked_pid, reason}, state) do
-    emit_latency_stats(state, -1, state.host_latency_stats)
+    emit_latency_stats(state, nil, state.host_latency_stats)
     state.clients |> Enum.each(fn {_ref, client} ->
       emit_latency_stats(state, client.id, client.latency_stats)
     end)
@@ -373,8 +373,7 @@ defmodule Tmate.Session do
   end
 
   defp client_join(state, ref, client) do
-    client_id = state.next_client_id
-    state = %{state | next_client_id: client_id + 1}
+    client_id = UUID.uuid1
     client = Map.merge(client, %{id: client_id, latency_stats: Tmate.Stats.new})
 
     state = %{state | clients: HashDict.put(state.clients, ref, client)}
