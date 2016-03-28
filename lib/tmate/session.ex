@@ -82,7 +82,7 @@ defmodule Tmate.Session do
   def handle_call({:send_exec_cmd, client_id, cmd}, _from, state) do
     Logger.debug("Sending exec: #{cmd}")
     send_daemon_msg(state, [P.tmate_ctl_deamon_fwd_msg,
-                             [P.tmate_in_exec_cmd, client_id, cmd]])
+                             [P.tmate_in_exec_cmd_str, client_id, cmd]])
     {:reply, :ok, state}
   end
 
@@ -280,25 +280,25 @@ defmodule Tmate.Session do
     state
   end
 
-  defp handle_daemon_msg(state, [P.tmate_out_exec_cmd, cmd]) do
-    handle_daemon_exec_cmd(state, cmd)
+  defp handle_daemon_msg(state, [P.tmate_out_exec_cmd | args]) do
+    handle_daemon_exec_cmd(state, args)
   end
 
   defp handle_daemon_msg(state, _msg) do
     state
   end
 
-  defp handle_daemon_exec_cmd(state, "set-option -g tmate-webhook-userdata " <> webhook_userdata) do
+  defp handle_daemon_exec_cmd(state, ["set-option", "-g", "tmate-webhook-userdata", webhook_userdata]) do
     Logger.debug("webhook-userdata: #{webhook_userdata}")
     state
   end
 
-  defp handle_daemon_exec_cmd(state, "set-option -g tmate-webhook-url " <> webhook_url) do
+  defp handle_daemon_exec_cmd(state, ["set-option", "-g", "tmate-webhook-url", webhook_url]) do
     Logger.debug("webhook-url: #{webhook_url}")
     state
   end
 
-  defp handle_daemon_exec_cmd(state, _cmd) do
+  defp handle_daemon_exec_cmd(state, _args) do
     state
   end
 

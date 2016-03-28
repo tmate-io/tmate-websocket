@@ -51,7 +51,7 @@ defmodule Tmate.ProtocolDefs do
     tmate_out_header,
     tmate_out_sync_layout,
     tmate_out_pty_data,
-    tmate_out_exec_cmd,
+    tmate_out_exec_cmd_str,
     tmate_out_failed_cmd,
     tmate_out_status,
     tmate_out_sync_copy_mode,
@@ -60,14 +60,16 @@ defmodule Tmate.ProtocolDefs do
     tmate_out_ready,
     tmate_out_reconnect,
     tmate_out_snapshot,
+    tmate_out_exec_cmd,
   ]
 
   enum tmate_daemon_in_msg_types, [
     tmate_in_notify,
     tmate_in_pane_key,
     tmate_in_resize,
-    tmate_in_exec_cmd,
+    tmate_in_exec_cmd_str,
     tmate_in_set_env,
     tmate_in_ready,
+    tmate_in_exec_cmd,
   ]
 end
