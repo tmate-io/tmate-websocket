@@ -25,7 +25,9 @@ defmodule Tmate.WebSocket do
         case Tmate.SessionRegistry.get_session(Tmate.SessionRegistry, stoken) do
           {mode, session} -> {:upgrade, :protocol, :cowboy_websocket, req,
                               %{session: session, access_mode: mode, identity: identity}}
-          :error -> {:ok, req, [404, [], "Session not found"]}
+          :error ->
+            :timer.sleep(:crypto.rand_uniform(50, 200))
+            {:ok, req, [404, [], "Session not found"]}
         end
     end
   end
