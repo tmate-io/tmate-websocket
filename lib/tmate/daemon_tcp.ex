@@ -40,6 +40,7 @@ defmodule Tmate.DaemonTcp do
 
   def handle_info({:tcp_closed, _socket}, state) do
     Logger.debug("Closed daemon connection")
+    Process.exit(state.session, :normal)
     {:stop, :normal, state}
   end
 

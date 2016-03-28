@@ -22,6 +22,7 @@ config :tmate, :master,
   session_url_fmt: "http://localhost:4000/t/%s"
 
 config :tmate, :webhook,
+  allow_user_defined_urls: true,
   urls: []
 
 config :ex_statsd,

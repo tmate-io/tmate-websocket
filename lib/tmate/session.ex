@@ -13,7 +13,7 @@ defmodule Tmate.Session do
 
   def init({master, webhook, daemon}) do
     state = %{master: master, webhook: webhook, daemon: daemon,
-              init_state: nil, webhook_pid: nil,
+              init_state: nil, webhook_pid: nil, webhook_userdata: nil,
               pending_ws_subs: [], ws_subs: [],
               daemon_protocol_version: -1,
               host_latency: -1, host_latency_stats: Tmate.Stats.new,
@@ -38,6 +38,12 @@ defmodule Tmate.Session do
     state.clients |> Enum.each(fn {_ref, client} ->
       emit_latency_stats(state, client.id, client.latency_stats)
     end)
+
+    Process.exit(daemon_pid(state), reason)
+    if state.webhook_pid do
+      Process.exit(state.webhook_pid, reason)
+    end
+
     {:stop, reason, state}
   end
 
@@ -99,6 +105,13 @@ defmodule Tmate.Session do
   end
 
   defp emit_event(state, event_type, params \\ %{}) do
+    if userdata = state[:webhook_userdata] do
+      if Map.has_key?(params, :userdata) do
+        raise "userdata override?"
+      end
+      params = Map.merge(params, %{userdata: userdata})
+    end
+
     state.webhook.emit_event(state.webhook_pid, event_type, state.id, params)
     :ok = state.master.emit_event(event_type, state.id, params)
   end
@@ -138,7 +151,8 @@ defmodule Tmate.Session do
 
   defp finalize_session_init(%{init_state: %{ip_address: ip_address, pubkey: pubkey, stoken: stoken,
       stoken_ro: stoken_ro, ssh_cmd_fmt: ssh_cmd_fmt,
-      client_version: client_version, reconnection_data: reconnection_data}}=state) do
+      client_version: client_version, reconnection_data: reconnection_data,
+      user_defined_webhook_urls: user_defined_webhook_urls, webhook_userdata: webhook_userdata}}=state) do
     old_stoken = stoken
     old_stoken_ro = stoken_ro
 
@@ -159,9 +173,9 @@ defmodule Tmate.Session do
             Tmate.SessionRegistry, self, stoken, stoken_ro)
 
     {:ok, webhook_options} = Application.fetch_env(:tmate, :webhook)
-    {:ok, webhook_pid} = state.webhook.start_link(webhook_options[:urls])
+    {:ok, webhook_pid} = state.webhook.start_link(webhook_options[:urls] ++ user_defined_webhook_urls)
 
-    state = %{state | webhook_pid: webhook_pid}
+    state = %{state | webhook_pid: webhook_pid, webhook_userdata: webhook_userdata}
 
     web_url_fmt = Application.get_env(:tmate, :master)[:session_url_fmt]
     event_payload = %{ip_address: ip_address, pubkey: pubkey, client_version: client_version,
@@ -210,7 +224,8 @@ defmodule Tmate.Session do
                               stoken, stoken_ro, ssh_cmd_fmt,
                               client_version, daemon_protocol_version]) do
     init_state = %{ip_address: ip_address, pubkey: pubkey, stoken: stoken, stoken_ro: stoken_ro,
-                   client_version: client_version, ssh_cmd_fmt: ssh_cmd_fmt, reconnection_data: nil}
+                   client_version: client_version, ssh_cmd_fmt: ssh_cmd_fmt,
+                   reconnection_data: nil, user_defined_webhook_urls: [], webhook_userdata: nil}
 
     state = %{state | daemon_protocol_version: daemon_protocol_version, init_state: init_state}
 
@@ -277,6 +292,7 @@ defmodule Tmate.Session do
 
   defp handle_daemon_msg(state, [P.tmate_out_fin]) do
     emit_event(state, :session_close)
+    Process.exit(self, :normal)
     state
   end
 
@@ -289,13 +305,16 @@ defmodule Tmate.Session do
   end
 
   defp handle_daemon_exec_cmd(state, ["set-option", "-g", "tmate-webhook-userdata", webhook_userdata]) do
-    Logger.debug("webhook-userdata: #{webhook_userdata}")
-    state
+    %{state | init_state: %{state.init_state | webhook_userdata: webhook_userdata}}
   end
 
   defp handle_daemon_exec_cmd(state, ["set-option", "-g", "tmate-webhook-url", webhook_url]) do
-    Logger.debug("webhook-url: #{webhook_url}")
-    state
+    {:ok, webhook_options} = Application.fetch_env(:tmate, :webhook)
+    if webhook_options[:allow_user_defined_urls] do
+      %{state | init_state: %{state.init_state | user_defined_webhook_urls: [webhook_url]}}
+    else
+      state
+    end
   end
 
   defp handle_daemon_exec_cmd(state, _args) do
@@ -315,6 +334,11 @@ defmodule Tmate.Session do
     # This might be problematic.
     # TODO We might want to serialize the msg here to avoid doing it N times.
     for ws <- ws_list, do: Tmate.WebSocket.send_msg(ws, msg)
+  end
+
+  defp daemon_pid(state) do
+    {transport, handle} = state.daemon
+    transport.daemon_pid(handle)
   end
 
   defp send_daemon_msg(state, msg) do
