@@ -5,7 +5,7 @@ defmodule Tmate.Session do
   require Logger
 
   @max_snapshot_lines 300
-  @latest_version "2.2.0"
+  @latest_version "2.2.1"
 
   def start_link(master, webhook, daemon, opts \\ []) do
     GenServer.start_link(__MODULE__, {master, webhook, daemon}, opts)
@@ -153,8 +153,7 @@ defmodule Tmate.Session do
 
   defp setup_webhooks(state, []), do: state
   defp setup_webhooks(state, webhook_urls) do
-    {:ok, webhook_pid} = webhook_urls |> Enum.map(& "#{Regex.replace(~r/\/$/, &1, "")}/events")
-                                      |> state.webhook.start_link(webhook_urls)
+    {:ok, webhook_pid} = state.webhook.start_link(webhook_urls)
     %{state | webhook_pid: webhook_pid }
   end
 
@@ -218,7 +217,7 @@ defmodule Tmate.Session do
 
     daemon_send_client_ready(state)
 
-    maybe_notice_version_upgrade(client_version)
+    # maybe_notice_version_upgrade(client_version)
 
     %{state | init_state: nil}
   end
