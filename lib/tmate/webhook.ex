@@ -7,7 +7,7 @@ defmodule Tmate.Webhook do
     def init(:ok) do
       {:ok, {}}
     end
-    def emit_event(_, _, _, _ \\ %{}), do: :ok
+    def emit_event(_, _, _, _, _ \\ %{}), do: :ok
   end
 
   use GenServer
@@ -28,13 +28,13 @@ defmodule Tmate.Webhook do
     {:ok, state}
   end
 
-  def emit_event(pid, event_type, entity_id, params \\ %{}) do
-    GenServer.cast(pid, {:emit_event, event_type, entity_id, params})
+  def emit_event(pid, event_type, entity_id, userdata, params \\ %{}) do
+    GenServer.cast(pid, {:emit_event, event_type, entity_id, userdata, params})
   end
 
-  def handle_cast({:emit_event, event_type, entity_id, params}, state) do
+  def handle_cast({:emit_event, event_type, entity_id, userdata, params}, state) do
     # TODO also include timestamp
-    payload = Poison.encode!(%{type: event_type, entity_id: entity_id, params: params})
+    payload = Poison.encode!(%{type: event_type, entity_id: entity_id, userdata: userdata, params: params})
     state.urls |> Enum.each(& post_event(&1, payload, @max_retry))
     {:noreply, state}
   end

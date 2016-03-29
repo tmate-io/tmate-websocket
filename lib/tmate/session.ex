@@ -105,15 +105,8 @@ defmodule Tmate.Session do
   end
 
   defp emit_event(state, event_type, params \\ %{}) do
-    if userdata = state[:webhook_userdata] do
-      if Map.has_key?(params, :userdata) do
-        raise "userdata override?"
-      end
-      params = Map.merge(params, %{userdata: userdata})
-    end
-
     if state[:webhook_pid] do
-      state.webhook.emit_event(state.webhook_pid, event_type, state.id, params)
+      state.webhook.emit_event(state.webhook_pid, event_type, state.id, state[:webhook_userdata], params)
     end
     :ok = state.master.emit_event(event_type, state.id, params)
   end
@@ -151,10 +144,10 @@ defmodule Tmate.Session do
     :ok = File.ln_s(stoken, p.(stoken_ro))
   end
 
-  defp setup_webhooks(state, []), do: state
-  defp setup_webhooks(state, webhook_urls) do
+  defp setup_webhooks(state, [], _userdata), do: state
+  defp setup_webhooks(state, webhook_urls, userdata) do
     {:ok, webhook_pid} = state.webhook.start_link(webhook_urls)
-    %{state | webhook_pid: webhook_pid }
+    %{state | webhook_pid: webhook_pid, webhook_userdata: userdata}
   end
 
   defp finalize_session_init(%{init_state: %{ip_address: ip_address, pubkey: pubkey, stoken: stoken,
@@ -181,8 +174,7 @@ defmodule Tmate.Session do
             Tmate.SessionRegistry, self, stoken, stoken_ro)
 
     {:ok, webhook_options} = Application.fetch_env(:tmate, :webhook)
-    state = setup_webhooks(state, webhook_options[:urls] ++ user_defined_webhook_urls)
-    state = %{state | webhook_userdata: webhook_userdata}
+    state = setup_webhooks(state, webhook_options[:urls] ++ user_defined_webhook_urls, webhook_userdata)
 
     web_url_fmt = Application.get_env(:tmate, :master)[:session_url_fmt]
     event_payload = %{ip_address: ip_address, pubkey: pubkey, client_version: client_version,
