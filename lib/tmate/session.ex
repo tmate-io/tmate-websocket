@@ -170,8 +170,7 @@ defmodule Tmate.Session do
     state = Map.merge(state, %{id: id})
     Logger.metadata(session_id: state.id)
 
-    :ok = Tmate.SessionRegistry.register_session(
-            Tmate.SessionRegistry, self, stoken, stoken_ro)
+    :ok = Tmate.SessionRegistry.register_session(Tmate.SessionRegistry, self, stoken, stoken_ro)
 
     {:ok, webhook_options} = Application.fetch_env(:tmate, :webhook)
     state = setup_webhooks(state, webhook_options[:urls] ++ user_defined_webhook_urls, webhook_userdata)
@@ -209,7 +208,7 @@ defmodule Tmate.Session do
 
     daemon_send_client_ready(state)
 
-    # maybe_notice_version_upgrade(client_version)
+    maybe_notice_version_upgrade(client_version)
 
     %{state | init_state: nil}
   end
