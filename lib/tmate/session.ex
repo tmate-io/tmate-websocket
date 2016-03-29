@@ -40,7 +40,7 @@ defmodule Tmate.Session do
     end)
 
     Process.exit(daemon_pid(state), reason)
-    if state.webhook_pid do
+    if state[:webhook_pid] do
       Process.exit(state.webhook_pid, reason)
     end
 
@@ -112,7 +112,9 @@ defmodule Tmate.Session do
       params = Map.merge(params, %{userdata: userdata})
     end
 
-    state.webhook.emit_event(state.webhook_pid, event_type, state.id, params)
+    if state[:webhook_pid] do
+      state.webhook.emit_event(state.webhook_pid, event_type, state.id, params)
+    end
     :ok = state.master.emit_event(event_type, state.id, params)
   end
 
@@ -172,10 +174,14 @@ defmodule Tmate.Session do
     :ok = Tmate.SessionRegistry.register_session(
             Tmate.SessionRegistry, self, stoken, stoken_ro)
 
-    {:ok, webhook_options} = Application.fetch_env(:tmate, :webhook)
-    {:ok, webhook_pid} = state.webhook.start_link(webhook_options[:urls] ++ user_defined_webhook_urls)
+    state = %{state | webhook_userdata: webhook_userdata}
 
-    state = %{state | webhook_pid: webhook_pid, webhook_userdata: webhook_userdata}
+    {:ok, webhook_options} = Application.fetch_env(:tmate, :webhook)
+    webhook_urls = webhook_options[:urls] ++ user_defined_webhook_urls
+    if !Enum.empty?(webhook_urls) do
+      {:ok, webhook_pid} = state.webhook.start_link(webhook_urls)
+      state = %{state | webhook_pid: webhook_pid }
+    end
 
     web_url_fmt = Application.get_env(:tmate, :master)[:session_url_fmt]
     event_payload = %{ip_address: ip_address, pubkey: pubkey, client_version: client_version,
