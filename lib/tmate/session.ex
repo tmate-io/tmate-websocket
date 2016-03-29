@@ -151,6 +151,13 @@ defmodule Tmate.Session do
     :ok = File.ln_s(stoken, p.(stoken_ro))
   end
 
+  defp setup_webhooks(state, []), do: state
+  defp setup_webhooks(state, webhook_urls) do
+    {:ok, webhook_pid} = webhook_urls |> Enum.map(& "#{Regex.replace(~r/\/$/, &1, "")}/events")
+                                      |> state.webhook.start_link(webhook_urls)
+    %{state | webhook_pid: webhook_pid }
+  end
+
   defp finalize_session_init(%{init_state: %{ip_address: ip_address, pubkey: pubkey, stoken: stoken,
       stoken_ro: stoken_ro, ssh_cmd_fmt: ssh_cmd_fmt,
       client_version: client_version, reconnection_data: reconnection_data,
@@ -174,14 +181,9 @@ defmodule Tmate.Session do
     :ok = Tmate.SessionRegistry.register_session(
             Tmate.SessionRegistry, self, stoken, stoken_ro)
 
-    state = %{state | webhook_userdata: webhook_userdata}
-
     {:ok, webhook_options} = Application.fetch_env(:tmate, :webhook)
-    webhook_urls = webhook_options[:urls] ++ user_defined_webhook_urls
-    if !Enum.empty?(webhook_urls) do
-      {:ok, webhook_pid} = state.webhook.start_link(webhook_urls)
-      state = %{state | webhook_pid: webhook_pid }
-    end
+    state = setup_webhooks(state, webhook_options[:urls] ++ user_defined_webhook_urls)
+    state = %{state | webhook_userdata: webhook_userdata}
 
     web_url_fmt = Application.get_env(:tmate, :master)[:session_url_fmt]
     event_payload = %{ip_address: ip_address, pubkey: pubkey, client_version: client_version,
