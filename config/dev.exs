@@ -16,10 +16,8 @@ config :tmate, :websocket,
     signing_salt: "PlqZqmWt",
     encryption_salt: "vIeLihup"]
 
-config :tmate, :master,
-  nodes: [:master]
-
-config :rollbax, enabled: false
+# config :tmate, :master,
+  # nodes: [:master]
 
 config :tmate, :webhook,
   enabled: false

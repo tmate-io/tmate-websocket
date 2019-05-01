@@ -2,7 +2,7 @@ defmodule Tmate do
   use Application
 
   def host do
-    node |> to_string |> String.split("@") |> Enum.at(1) |> String.split(".") |> Enum.at(0)
+    node() |> to_string |> String.split("@") |> Enum.at(1) |> String.split(".") |> Enum.at(0)
   end
 
   def start(_type, _args) do
@@ -17,12 +17,14 @@ defmodule Tmate do
       worker(Tmate.SessionRegistry, [[name: Tmate.SessionRegistry]]),
     ]
 
-    unless websocket_options[:enabled] == false do
+    children = unless websocket_options[:enabled] == false do
       cowboy_opts = [env: [dispatch: Tmate.WebSocket.cowboy_dispatch], compress: true]
-      children = children ++ [
+      children ++ [
         :ranch.child_spec(:websocket_tcp, 3, websocket_options[:listener], websocket_options[:ranch_opts],
                           :cowboy_protocol, cowboy_opts)
       ]
+    else
+      children
     end
 
     Supervisor.start_link(children, [strategy: :one_for_one, name: Tmate.Supervisor])

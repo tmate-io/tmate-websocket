@@ -17,7 +17,7 @@ defmodule Tmate.Session do
               pending_ws_subs: [], ws_subs: [],
               daemon_protocol_version: -1,
               host_latency: -1, host_latency_stats: Tmate.Stats.new,
-              current_layout: [], clients: HashDict.new}
+              current_layout: [], clients: %{}}
 
     :ping = master.ping_master
     Process.flag(:trap_exit, true)
@@ -170,7 +170,7 @@ defmodule Tmate.Session do
     state = Map.merge(state, %{id: id})
     Logger.metadata(session_id: state.id)
 
-    :ok = Tmate.SessionRegistry.register_session(Tmate.SessionRegistry, self, stoken, stoken_ro)
+    :ok = Tmate.SessionRegistry.register_session(Tmate.SessionRegistry, self(), stoken, stoken_ro)
 
     {:ok, webhook_options} = Application.fetch_env(:tmate, :webhook)
     state = setup_webhooks(state, webhook_options[:urls] ++ user_defined_webhook_urls, webhook_userdata)
@@ -290,7 +290,7 @@ defmodule Tmate.Session do
 
   defp handle_daemon_msg(state, [P.tmate_out_fin]) do
     emit_event(state, :session_close)
-    Process.exit(self, :normal)
+    Process.exit(self(), :normal)
     state
   end
 
@@ -345,7 +345,7 @@ defmodule Tmate.Session do
   end
 
   defp delayed_notify_daemon(timeout, msg) do
-    :erlang.start_timer(timeout, self, {:notify_daemon, msg})
+    :erlang.start_timer(timeout, self(), {:notify_daemon, msg})
   end
 
   defp notify_daemon(state, msg) do
@@ -353,13 +353,13 @@ defmodule Tmate.Session do
                              [P.tmate_in_notify, msg]])
   end
 
-  defp daemon_set_env(%{daemon_protocol_version: v}, _, _) when v < 4, do: ()
+  defp daemon_set_env(%{daemon_protocol_version: v}, _, _) when v < 4, do: nil
   defp daemon_set_env(state, key, value) do
     send_daemon_msg(state, [P.tmate_ctl_deamon_fwd_msg,
                              [P.tmate_in_set_env, key, value]])
   end
 
-  defp daemon_send_client_ready(%{daemon_protocol_version: v}) when v < 4, do: ()
+  defp daemon_send_client_ready(%{daemon_protocol_version: v}) when v < 4, do: nil
   defp daemon_send_client_ready(state) do
     send_daemon_msg(state, [P.tmate_ctl_deamon_fwd_msg,
                              [P.tmate_in_ready]])
@@ -374,20 +374,21 @@ defmodule Tmate.Session do
     client_id = UUID.uuid1
     client = Map.merge(client, %{id: client_id, latency_stats: Tmate.Stats.new})
 
-    state = %{state | clients: HashDict.put(state.clients, ref, client)}
+    state = %{state | clients: Map.put(state.clients, ref, client)}
     update_client_presence(state, client, true)
     state
   end
 
   defp client_left(state, ref) do
-    case HashDict.fetch(state.clients, ref) do
+    case Map.fetch(state.clients, ref) do
       {:ok, client} ->
-        state = %{state | clients: HashDict.delete(state.clients, ref)}
+        state = %{state | clients: Map.delete(state.clients, ref)}
         update_client_presence(state, client, false)
+        state
       :error ->
         Logger.error("Missing client #{inspect(ref)} in client list")
+        state
     end
-    state
   end
 
   defp update_client_presence(state, client, join) do
@@ -407,24 +408,25 @@ defmodule Tmate.Session do
 
   defp notify_client_presence_daemon(state, client, join) do
     verb = if join, do: 'joined', else: 'left'
-    num_clients = HashDict.size(state.clients)
+    num_clients = Map.size(state.clients)
     msg = "A mate has #{verb} (#{client.ip_address}) -- " <>
           "#{num_clients} client#{if num_clients > 1, do: 's'} currently connected"
     notify_daemon(state, msg)
   end
 
   defp update_client_size(state, ref, size) do
-    client = HashDict.fetch!(state.clients, ref)
+    client = Map.fetch!(state.clients, ref)
     client = Map.merge(client, %{size: size})
-    state = %{state | clients: HashDict.put(state.clients, ref, client)}
+    state = %{state | clients: Map.put(state.clients, ref, client)}
     recalculate_sizes(state)
     state
   end
 
   def recalculate_sizes(state) do
     sizes = state.clients
-    |> HashDict.values
-    |> Enum.filter_map(& &1[:size], & &1[:size])
+    |> Map.values
+    |> Enum.filter(& &1[:size])
+    |> Enum.map(& &1[:size])
 
     {max_cols, max_rows} = if Enum.empty?(sizes) do
       {-1,-1}
@@ -450,13 +452,13 @@ defmodule Tmate.Session do
   end
 
   defp report_end_to_end_latency(state, ref, end_to_end_latency) do
-    client = HashDict.fetch!(state.clients, ref)
+    client = Map.fetch!(state.clients, ref)
     client = %{client | latency_stats: Tmate.Stats.insert(client.latency_stats, end_to_end_latency)}
-    state = %{state | clients: HashDict.put(state.clients, ref, client)}
+    state = %{state | clients: Map.put(state.clients, ref, client)}
 
-    end_to_end_latency
-    |> ExStatsD.timer("#{Tmate.host}.end_to_end_latency")
-    |> ExStatsD.timer("end_to_end_latency")
+    # end_to_end_latency
+    # |> ExStatsD.timer("#{Tmate.host}.end_to_end_latency")
+    # |> ExStatsD.timer("end_to_end_latency")
     state
   end
 

@@ -5,7 +5,7 @@ defmodule Tmate.MasterEndpoint do
   end
 
   def emit_event(event_type, entity_id, params \\ %{}) do
-    call_master({:event, current_timestamp, event_type, entity_id, params})
+    call_master({:event, current_timestamp(), event_type, entity_id, params})
   end
 
   def identify_client(token, username, ip_address, pubkey) do
@@ -19,7 +19,7 @@ defmodule Tmate.MasterEndpoint do
       if String.contains?(name, "@") do
         Node.ping(name |> String.to_atom)
       else
-        host = node |> to_string |> String.split("@") |> Enum.at(1)
+        host = node() |> to_string |> String.split("@") |> Enum.at(1)
         Node.ping("#{name}@#{host}" |> String.to_atom)
       end
     end)
@@ -31,11 +31,11 @@ defmodule Tmate.MasterEndpoint do
   end
 
   defp call_master_once(args) do
-    case :pg2.get_closest_pid(pg2_namespace) do
+    case :pg2.get_closest_pid(pg2_namespace()) do
       {:error, err} -> {:error, err}
       pid ->
         ref = Process.monitor(pid)
-        send(pid, {:call, ref, self, args})
+        send(pid, {:call, ref, self(), args})
         receive do
           {:DOWN, ^ref, _type, _pid, _info} -> {:error, :noproc}
           {:reply, ^ref, ret} ->
@@ -53,7 +53,7 @@ defmodule Tmate.MasterEndpoint do
           0 -> {:error, err}
           _ ->
             :timer.sleep(retry_timeout)
-            ping_master
+            ping_master()
             call_master(args, tries - 1, retry_timeout)
         end
     end

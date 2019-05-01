@@ -7,7 +7,7 @@ defmodule Tmate.Mixfile do
      elixir: "~> 1.1",
      elixirc_paths: ["lib"],
      compilers: Mix.compilers,
-     deps: deps,
+     deps: deps(),
      # dialyzer: [paths: ~w(tmate ranch) |> Enum.map(fn(x) -> "_build/dev/lib/#{x}/ebin" end)]
      ]
   end
@@ -20,8 +20,8 @@ defmodule Tmate.Mixfile do
     case Mix.env do
       :test -> [mod: {ExUnit, []}, applications: [:logger]]
       _ ->     [mod: {Tmate, []},  applications: [:logger, :ranch, :cowboy,
-                                   :rollbax, :plug, :uuid, :message_pack, :edeliver,
-                                   :ex_statsd, :quantile_estimator, :poison, :httpoison]]
+                                   :plug, :uuid, :message_pack,
+                                   :quantile_estimator, :poison, :httpoison]]
     end
   end
 
@@ -30,18 +30,15 @@ defmodule Tmate.Mixfile do
   # Type `mix help deps` for examples and options
   defp deps do
     [
-      # {:ranch, "~> 1.0"},
+      {:ranch, "~> 1.0"},
       {:cowboy, "~> 1.0"},
       {:plug, "~> 1.0"},
       {:uuid, "~> 1.1" },
-      {:rollbax, ">= 0.0.0"},
-      {:exrm, ">= 0.0.0"},
-      {:edeliver, ">= 0.0.0"},
-      {:ex_statsd, ">= 0.0.0"},
       {:poison, ">= 0.0.0"},
       {:httpoison, ">= 0.0.0"},
       {:quantile_estimator, github: "nviennot/quantile_estimator"},
-      {:message_pack, github: "nviennot/msgpack-elixir"}
+      {:message_pack, github: "nviennot/msgpack-elixir"},
+      {:distillery, "~> 2.0"},
     ]
   end
 end

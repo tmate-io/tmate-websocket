@@ -86,7 +86,7 @@ defmodule Tmate.WebSocket do
 
     client_info = %{type: :web, identity: state.identity, ip_address: ip,
                     readonly: [ro: true, rw: false][state.access_mode]}
-    :ok = Tmate.Session.ws_request_sub(state.session, self, client_info)
+    :ok = Tmate.Session.ws_request_sub(state.session, self(), client_info)
 
     start_ping_timer(3000)
     {:ok, req, state}
@@ -103,7 +103,7 @@ defmodule Tmate.WebSocket do
 
   def websocket_handle({:pong, _}, req, state) do
     latency = :erlang.monotonic_time(:milli_seconds) - state.last_ping_at
-    Tmate.Session.notify_latency(state.session, self, latency)
+    Tmate.Session.notify_latency(state.session, self(), latency)
     {:ok, req, state}
   end
 
@@ -112,11 +112,11 @@ defmodule Tmate.WebSocket do
   end
 
   defp start_ping_timer(timeout \\ @ping_interval_sec * 1000) do
-    :erlang.start_timer(timeout, self, :ping)
+    :erlang.start_timer(timeout, self(), :ping)
   end
 
   def websocket_info({:timeout, _ref, :ping}, req, state) do
-    start_ping_timer
+    start_ping_timer()
     state = Map.merge(state, %{last_ping_at: :erlang.monotonic_time(:milli_seconds)})
     {:reply, :ping, req, state}
   end
@@ -150,7 +150,7 @@ defmodule Tmate.WebSocket do
   defp handle_ws_msg(state, [P.tmate_ws_resize, [max_cols, max_rows]])
       when is_integer(max_cols) and max_cols >= 0 and
            is_integer(max_rows) and max_rows >= 0 do
-    :ok = Tmate.Session.notify_resize(state.session, self, {max_cols, max_rows})
+    :ok = Tmate.Session.notify_resize(state.session, self(), {max_cols, max_rows})
   end
 
   defp handle_ws_msg(_state, msg) do

@@ -15,7 +15,7 @@ defmodule Tmate.SessionTest do
 
   def flush do
     receive do
-      _ -> flush
+      _ -> flush()
     after
       0 -> nil
     end
@@ -26,7 +26,7 @@ defmodule Tmate.SessionTest do
     children = [worker(Tmate.SessionRegistry, [[name: Tmate.SessionRegistry]])]
     Supervisor.start_link(children, [strategy: :one_for_one, name: Tmate.Supervisor])
 
-    {:ok, session} = Session.start_link(Tmate.MasterEndpoint.Null, Tmate.Webhook.Null, {Daemon, self})
+    {:ok, session} = Session.start_link(Tmate.MasterEndpoint.Null, Tmate.Webhook.Null, {Daemon, self()})
     {:ok, session: session}
   end
 
@@ -47,31 +47,31 @@ defmodule Tmate.SessionTest do
 
     refute_received {:daemon_msg, [P.tmate_ctl_resize | _]}
 
-    flush
+    flush()
     Session.notify_resize(session, ws |> Enum.at(0), {100, 200})
     assert_receive {:daemon_msg, [P.tmate_ctl_resize, 100, 200]}
 
-    flush
+    flush()
     Session.notify_resize(session, ws |> Enum.at(1), {200, 100})
     assert_receive {:daemon_msg, [P.tmate_ctl_resize, 100, 100]}
 
-    flush
+    flush()
     Session.notify_resize(session, ws |> Enum.at(2), {300, 300})
     assert_receive {:daemon_msg, [P.tmate_ctl_resize, 100, 100]}
 
-    flush
+    flush()
     Session.notify_resize(session, ws |> Enum.at(1), {200, 50})
     assert_receive {:daemon_msg, [P.tmate_ctl_resize, 100, 50]}
 
-    flush
+    flush()
     :erlang.exit(ws |> Enum.at(1), :ok)
     assert_receive {:daemon_msg, [P.tmate_ctl_resize, 100, 200]}
 
-    flush
+    flush()
     :erlang.exit(ws |> Enum.at(0), :ok)
     assert_receive {:daemon_msg, [P.tmate_ctl_resize, 300, 300]}
 
-    flush
+    flush()
     :erlang.exit(ws |> Enum.at(2), :ok)
     assert_receive {:daemon_msg, [P.tmate_ctl_resize, -1, -1]}
   end

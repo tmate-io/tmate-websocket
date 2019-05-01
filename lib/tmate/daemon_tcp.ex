@@ -4,16 +4,16 @@ defmodule Tmate.DaemonTcp do
   use GenServer
 
   def start_link(ref, socket, transport, opts) do
-    :proc_lib.start_link(__MODULE__, :init, [ref, socket, transport, opts])
+    :proc_lib.start_link(__MODULE__, :init, [{ref, socket, transport, opts}])
   end
 
-  def init(ref, socket, transport, _opts) do
-    :ok = :proc_lib.init_ack({:ok, self})
+  def init({ref, socket, transport, _opts}) do
+    :ok = :proc_lib.init_ack({:ok, self()})
 
     :ok = :ranch.accept_ack(ref)
     :ok = transport.setopts(socket, [active: :once])
     {:ok, session} = Tmate.SessionRegistry.new_session(Tmate.SessionRegistry,
-                      {__MODULE__, {self, socket, transport}})
+                      {__MODULE__, {self(), socket, transport}})
 
     Process.link(session)
     Logger.debug("Accepted daemon connection")

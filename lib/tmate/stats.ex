@@ -11,8 +11,11 @@ defmodule Tmate.Stats do
 
   def insert(%{qe: qe, n: n, s1: s1, s2: s2}=state, value) do
     qe = :quantile_estimator.insert(value, qe)
-    if (qe.inserts_since_compression >= @compression_interval) do
-      qe = :quantile_estimator.compress(qe)
+
+    qe = if (:quantile_estimator.inserts_since_compression(qe) >= @compression_interval) do
+      :quantile_estimator.compress(qe)
+    else
+      qe
     end
 
     n  = n + 1
