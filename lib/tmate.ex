@@ -1,5 +1,6 @@
 defmodule Tmate do
   use Application
+  require Logger
 
   def host do
     node() |> to_string |> String.split("@") |> Enum.at(1) |> String.split(".") |> Enum.at(0)
@@ -27,6 +28,7 @@ defmodule Tmate do
       children
     end
 
+    Logger.info("Starting proxy")
     Supervisor.start_link(children, [strategy: :one_for_one, name: Tmate.Supervisor])
   end
 end

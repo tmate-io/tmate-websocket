@@ -7,7 +7,6 @@ WORKDIR /build
 
 COPY mix.exs .
 COPY mix.lock .
-COPY deps deps
 
 ARG MIX_ENV=prod
 ARG APP_VERSION=0.0.0
