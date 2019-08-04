@@ -1,0 +1,22 @@
+FROM elixir:1.8-alpine
+
+RUN mix local.hex --force && mix local.rebar --force
+RUN apk --no-cache add git
+
+WORKDIR /src/tmate-proxy
+
+COPY mix.exs .
+COPY mix.lock .
+
+ARG MIX_ENV=dev
+ENV MIX_ENV ${MIX_ENV}
+
+RUN mix deps.get
+RUN mix deps.compile
+
+COPY lib lib
+COPY config config
+
+RUN mix compile
+
+CMD mkfifo console && cat console | iex -S mix
