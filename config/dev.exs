@@ -16,8 +16,8 @@ config :tmate, :websocket,
     signing_salt: "PlqZqmWt",
     encryption_salt: "vIeLihup"]
 
-# config :tmate, :master,
-  # nodes: [:master]
+config :tmate, :master,
+  nodes: ['master@erlmaster.default.svc.cluster.local']
 
 config :tmate, :webhook,
   enabled: false

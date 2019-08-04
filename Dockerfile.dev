@@ -19,4 +19,7 @@ COPY config config
 
 RUN mix compile
 
-CMD mkfifo console && cat console | iex -S mix
+CMD mkfifo console && cat console | \
+  iex --name local@127.0.0.1 \
+      --cookie cookie \
+      -S mix
