@@ -1,4 +1,4 @@
-FROM elixir:1.8-alpine
+FROM elixir:1.9-alpine
 
 RUN mix local.hex --force && mix local.rebar --force
 RUN apk --no-cache add git
@@ -8,8 +8,7 @@ WORKDIR /src/tmate-proxy
 COPY mix.exs .
 COPY mix.lock .
 
-ARG MIX_ENV=dev
-ENV MIX_ENV ${MIX_ENV}
+ENV MIX_ENV dev
 
 RUN mix deps.get
 RUN mix deps.compile

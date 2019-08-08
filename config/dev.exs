@@ -4,25 +4,19 @@ config :logger, :console,
   format: "[$level] $message\n"
 
 config :tmate, :daemon,
-  hmac_key: "key"
+  hmac_key: "VlCkxXLjzaFravvNSPpOdoAffaQHRNVHeSBNWUcfLDYTYHuaYQsWwyCjrSJAJUSr"
 
 config :tmate, :websocket,
   listener: :ranch_tcp,
   ranch_opts: [port: 4001],
-  host: "localhost",
-  cookie_opts: [
-    key: "tmate_session",
-    secret_key_base: "rzC2wqnmk0VeKRZHiMtPDAkd5QeWdPSSX2H9pknPBgb4rdOA7TEqMq9Umm5bjFPs",
-    signing_salt: "PlqZqmWt",
-    encryption_salt: "vIeLihup"]
+  host: "localhost"
 
 config :tmate, :master,
-  nodes: ['master@erlmaster.default.svc.cluster.local']
+  nodes: ['master@erlmaster.default.svc.cluster.local'],
+  session_url_fmt: "http://localhost:4000/t/%s"
 
-config :tmate, :webhook,
-  enabled: false
 
-#### Events only
+#### The following shows a config that would be for supporting only webhooks
 
 # config :tmate, :websocket,
   # enabled: false

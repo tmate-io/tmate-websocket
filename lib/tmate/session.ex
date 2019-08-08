@@ -408,7 +408,7 @@ defmodule Tmate.Session do
 
   defp notify_client_presence_daemon(state, client, join) do
     verb = if join, do: 'joined', else: 'left'
-    num_clients = Map.size(state.clients)
+    num_clients = Kernel.map_size(state.clients)
     msg = "A mate has #{verb} (#{client.ip_address}) -- " <>
           "#{num_clients} client#{if num_clients > 1, do: 's'} currently connected"
     notify_daemon(state, msg)

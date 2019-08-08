@@ -3,8 +3,8 @@ defmodule Tmate.Mixfile do
 
   def project do
     [app: :tmate,
-     version: "0.0.24",
-     elixir: "~> 1.1",
+     version: "0.1.1",
+     elixir: "~> 1.9",
      elixirc_paths: ["lib"],
      compilers: Mix.compilers,
      deps: deps(),
@@ -38,7 +38,7 @@ defmodule Tmate.Mixfile do
       {:httpoison, ">= 0.0.0"},
       {:quantile_estimator, github: "nviennot/quantile_estimator"},
       {:message_pack, github: "nviennot/msgpack-elixir"},
-      {:distillery, "~> 2.0"},
+      {:distillery, "~> 2.1"},
     ]
   end
 end
