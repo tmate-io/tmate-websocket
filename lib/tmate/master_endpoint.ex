@@ -60,11 +60,7 @@ defmodule Tmate.MasterEndpoint do
   end
 
   defp current_timestamp() do
-    # from Ecto lib.
-    erl_timestamp = :os.timestamp
-    {_, _, usec} = erl_timestamp
-    {date, {h, m, s}} = :calendar.now_to_datetime(erl_timestamp)
-    {date, {h, m, s, usec}}
+    DateTime.truncate(DateTime.utc_now, :second)
   end
 
   defp pg2_namespace do
