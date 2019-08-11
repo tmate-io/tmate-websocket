@@ -16,8 +16,8 @@ config :tmate, :websocket,
     keyfile: System.get_env("SSL_KEY_FILE"),
     certfile: System.get_env("SSL_CERT_FILE"),
     cacertfile: System.get_env("SSL_CACERT_FILE")],
-  host: System.get_env("HOST")
+  host: System.get_env("HOSTNAME")
 
 config :tmate, :master,
   nodes: ['master@erlmaster.default.svc.cluster.local'],
-  session_url_fmt: "https://#{System.get_env("MASTER_HOST")}/t/%s"
+  session_url_fmt: "https://#{System.get_env("MASTER_HOSTNAME")}/t/%s"
