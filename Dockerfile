@@ -38,6 +38,7 @@ USER app
 
 RUN mkdir /tmp/app
 ENV RELEASE_MUTABLE_DIR /tmp/app
+ENV REPLACE_OS_VARS true
 
 # Start command
 CMD ["/opt/app/bin/tmate", "foreground"]
