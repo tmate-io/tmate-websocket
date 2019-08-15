@@ -26,7 +26,7 @@ defmodule Tmate.MasterEndpoint do
 
     case results |> Enum.any?(& &1 == :pong) do
       false -> :pang
-      true -> :ping
+      true -> :pong
     end
   end
 

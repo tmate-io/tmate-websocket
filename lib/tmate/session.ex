@@ -19,7 +19,7 @@ defmodule Tmate.Session do
               host_latency: -1, host_latency_stats: Tmate.Stats.new,
               current_layout: [], clients: %{}}
 
-    :ping = master.ping_master
+    :pong = master.ping_master
     Process.flag(:trap_exit, true)
     {:ok, state}
   end
