@@ -1,7 +1,7 @@
 defmodule Tmate.MasterEndpoint do
   defmodule Null do
     def emit_event(_, _, _ \\ %{}), do: :ok
-    def ping_master, do: :ping
+    def ping_master, do: :pong
   end
 
   def emit_event(event_type, entity_id, params \\ %{}) do
