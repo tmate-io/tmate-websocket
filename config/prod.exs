@@ -12,7 +12,7 @@ config :tmate, :daemon,
 config :tmate, :websocket,
   listener: :ranch_ssl,
   ranch_opts: [
-    port: 4001,
+    port: System.get_env("WEBSOCKET_PORT", "4001") |> String.to_integer(),
     keyfile: System.get_env("SSL_KEY_FILE"),
     certfile: System.get_env("SSL_CERT_FILE"),
     cacertfile: System.get_env("SSL_CACERT_FILE")],
