@@ -15,4 +15,7 @@ config :tmate, :webhook,
   allow_user_defined_urls: true,
   urls: []
 
+config :tmate, :master,
+  nodes: []
+
 import_config "#{Mix.env}.exs"

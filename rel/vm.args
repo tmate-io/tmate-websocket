@@ -3,7 +3,7 @@
 ## http://erlang.org/doc/man/erl.html
 
 ## Name of the node
--name <%= release_name %>@${NODE_IP}
+-name <%= release_name %>@${ERL_NODE_NAME}
 
 ## Cookie for distributed erlang
 -setcookie ${ERL_COOKIE}
