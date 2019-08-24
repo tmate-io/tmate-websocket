@@ -28,7 +28,7 @@ defmodule Tmate do
       children
     end
 
-    Logger.info("Starting proxy")
+    Logger.info("Starting websocket server")
     Supervisor.start_link(children, [strategy: :one_for_one, name: Tmate.Supervisor])
   end
 end
