@@ -67,12 +67,7 @@ defmodule Tmate.WebSocket do
     if ws_env[:enabled] == false do
       "disabled"
     else
-      ssl = ws_env[:listener] == :ranch_ssl
-      host = ws_env[:host] || Node.self |> to_string |> String.split("@") |> Enum.at(1)
-      default_port = if ssl, do: 443, else: 80
-      port = if ws_env[:ranch_opts][:port] == default_port, do: "", else: ":#{ws_env[:ranch_opts][:port]}"
-      schema = if ssl, do: "wss", else: "ws"
-      "#{schema}://#{host}#{port}/ws/session/%s"
+      "#{ws_env[:base_url]}ws/session/%s"
     end
   end
 

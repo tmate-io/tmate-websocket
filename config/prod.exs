@@ -24,11 +24,11 @@ end
 config :tmate, :websocket, Keyword.merge(websocket_ranch_opts,
   cowboy_opts: %{
     compress: true,
-    proxy_header: System.get_env("USE_PROXY_PROTOCOL", "0") == "1"},
-  host: System.get_env("WEBSOCKET_HOSTNAME")
+    proxy_header: System.get_env("USE_PROXY_PROTOCOL") == "1"},
+  base_url: System.get_env("WEBSOCKET_BASE_URL")
 )
 
 config :tmate, :master,
   nodes: System.get_env("ERL_MASTER_NODES", "")
          |> String.split(~r{,|\s}, trim: true),
-  session_url_fmt: "#{System.get_env("MASTER_BASE_URL")}/t/%s"
+  base_url: System.get_env("MASTER_BASE_URL")

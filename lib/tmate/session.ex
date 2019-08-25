@@ -175,7 +175,9 @@ defmodule Tmate.Session do
     {:ok, webhook_options} = Application.fetch_env(:tmate, :webhook)
     state = setup_webhooks(state, webhook_options[:urls] ++ user_defined_webhook_urls, webhook_userdata)
 
-    web_url_fmt = Application.get_env(:tmate, :master)[:session_url_fmt]
+    master_base_url = Application.get_env(:tmate, :master)[:base_url]
+    web_url_fmt = "#{master_base_url}t/%s"
+
     event_payload = %{ip_address: ip_address, pubkey: pubkey, client_version: client_version,
                       stoken: stoken, stoken_ro: stoken_ro, reconnected: reconnected,
                       ssh_cmd_fmt: ssh_cmd_fmt, ws_url_fmt: Tmate.WebSocket.ws_url_fmt,
