@@ -19,10 +19,10 @@ defmodule Tmate do
     ]
 
     children = unless websocket_options[:enabled] == false do
-      cowboy_opts = [env: [dispatch: Tmate.WebSocket.cowboy_dispatch], compress: true]
+      cowboy_opts = %{env: %{dispatch: Tmate.WebSocket.cowboy_dispatch}, compress: true, proxy_header: false}
       children ++ [
         :ranch.child_spec(:websocket_tcp, 3, websocket_options[:listener], websocket_options[:ranch_opts],
-                          :cowboy_protocol, cowboy_opts)
+                          :cowboy_clear, cowboy_opts)
       ]
     else
       children

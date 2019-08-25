@@ -12,22 +12,27 @@ defmodule Tmate.WebSocket do
     ]}])
   end
 
-  def init({_transport, :http}, req, _opts) do
-    {stoken, req} = Request.binding(:stoken, req)
+  def init(req, _opts) do
+    stoken = Request.binding(:stoken, req)
     Logger.metadata([stoken: stoken])
+
+    state = %{}
 
     # TODO Check the request origin
 
     # TODO monads?
     case identity = get_identity(req) do
-      nil -> {:ok, req, [401, [], "Cookie not found?"]}
+      nil -> {:ok, Request.reply(401, %{}, "Cannot get identity", req), state}
       _ ->
         case Tmate.SessionRegistry.get_session(Tmate.SessionRegistry, stoken) do
-          {mode, session} -> {:upgrade, :protocol, :cowboy_websocket, req,
-                              %{session: session, access_mode: mode, identity: identity}}
+          {mode, session} ->
+            {ip, _port} = Request.peer(req)
+            ip = :inet_parse.ntoa(ip) |> to_string
+            state = %{session: session, access_mode: mode, identity: identity, ip: ip}
+            {:cowboy_websocket, req, state, %{compress: true}}
           :error ->
             :timer.sleep(:crypto.rand_uniform(50, 200))
-            {:ok, req, [404, [], "Session not found"]}
+            {:ok, Request.reply(404, %{}, "Session not found", req), state}
         end
     end
   end
@@ -68,74 +73,67 @@ defmodule Tmate.WebSocket do
     end
   end
 
-  def handle(req, args) do
-    {:ok, req} = apply(Request, :reply, args ++ [req])
-    {:ok, req, :nostate}
-  end
-
   def send_msg(ws, msg) do
     send(ws, {:send_msg, msg})
   end
 
-  def websocket_init(_transport, req, state) do
-    {{ip, _port}, req} = Request.peer(req)
-    ip = :inet_parse.ntoa(ip) |> to_string
-    Logger.info("Accepted websocket connection (ip=#{ip}) (access_mode=#{state.access_mode})")
+  def websocket_init(state) do
+    Logger.info("Accepted websocket connection (ip=#{state.ip}) (access_mode=#{state.access_mode})")
 
     Process.monitor(state.session)
 
-    client_info = %{type: :web, identity: state.identity, ip_address: ip,
+    client_info = %{type: :web, identity: state.identity, ip_address: state.ip,
                     readonly: [ro: true, rw: false][state.access_mode]}
     :ok = Tmate.Session.ws_request_sub(state.session, self(), client_info)
 
     start_ping_timer(3000)
-    {:ok, req, state}
+    {:ok, state}
   end
 
-  def websocket_handle({:binary, msg}, req, %{access_mode: :rw} = state) do
+  def websocket_handle({:binary, msg}, %{access_mode: :rw} = state) do
     handle_ws_msg(state, deserialize_msg!(msg))
-    {:ok, req, state}
+    {:ok, state}
   end
 
-  def websocket_handle({:binary, _msg}, req, state) do
-    {:ok, req, state}
+  def websocket_handle({:binary, _msg}, state) do
+    {:ok, state}
   end
 
-  def websocket_handle({:pong, _}, req, state) do
+  def websocket_handle({:pong, _}, state) do
     latency = :erlang.monotonic_time(:milli_seconds) - state.last_ping_at
     Tmate.Session.notify_latency(state.session, self(), latency)
-    {:ok, req, state}
+    {:ok, state}
   end
 
-  def websocket_handle(_, req, state) do
-    {:ok, req, state}
+  def websocket_handle(_, state) do
+    {:ok, state}
   end
 
   defp start_ping_timer(timeout \\ @ping_interval_sec * 1000) do
     :erlang.start_timer(timeout, self(), :ping)
   end
 
-  def websocket_info({:timeout, _ref, :ping}, req, state) do
+  def websocket_info({:timeout, _ref, :ping}, state) do
     start_ping_timer()
     state = Map.merge(state, %{last_ping_at: :erlang.monotonic_time(:milli_seconds)})
-    {:reply, :ping, req, state}
+    {:reply, :ping, state}
   end
 
-  def websocket_info({:DOWN, _ref, _type, _pid, _info}, req, state) do
-    {:reply, :close, req, state}
+  def websocket_info({:DOWN, _ref, _type, _pid, _info}, state) do
+    {:reply, :close, state}
   end
 
-  def websocket_info({:send_msg, msg}, req, state) do
-     {:reply, serialize_msg!(msg), req, state}
+  def websocket_info({:send_msg, msg}, state) do
+     {:reply, serialize_msg!(msg), state}
   end
 
-  def websocket_terminate(_reason, _req, _state) do
-    :ok
-  end
+  # def websocket_terminate(_reason, _req, _state) do
+    # :ok
+  # end
 
-  def terminate(_reason, _req, _state) do
-    :ok
-  end
+  # def terminate(_reason, _req, _state) do
+    # :ok
+  # end
 
   # TODO validate types
   defp handle_ws_msg(state, [P.tmate_ws_pane_keys, pane_id, data])

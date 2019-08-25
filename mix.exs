@@ -31,7 +31,7 @@ defmodule Tmate.Mixfile do
   defp deps do
     [
       {:ranch, "~> 1.0"},
-      {:cowboy, "~> 1.0"},
+      {:cowboy, "~> 2.0"},
       {:plug, "~> 1.0"},
       {:uuid, "~> 1.1" },
       {:poison, ">= 0.0.0"},
