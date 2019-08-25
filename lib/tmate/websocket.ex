@@ -26,7 +26,10 @@ defmodule Tmate.WebSocket do
       _ ->
         case Tmate.SessionRegistry.get_session(Tmate.SessionRegistry, stoken) do
           {mode, session} ->
-            {ip, _port} = Request.peer(req)
+            ip = case req do
+              %{proxy_header: %{src_address: ip}} -> ip
+              %{peer: {ip, _port}} -> ip
+            end
             ip = :inet_parse.ntoa(ip) |> to_string
             state = %{session: session, access_mode: mode, identity: identity, ip: ip}
             {:cowboy_websocket, req, state, %{compress: true}}

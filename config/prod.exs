@@ -16,6 +16,9 @@ config :tmate, :websocket,
     keyfile: System.get_env("SSL_KEY_FILE"),
     certfile: System.get_env("SSL_CERT_FILE"),
     cacertfile: System.get_env("SSL_CACERT_FILE")],
+  cowboy_opts: %{
+      compress: true,
+      proxy_header: System.get_env("USE_PROXY_PROTOCOL", "0") == "1"},
   host: System.get_env("WEBSOCKET_HOSTNAME")
 
 config :tmate, :master,

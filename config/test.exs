@@ -9,3 +9,7 @@ config :tmate, :websocket,
 
 config :tmate, :daemon,
   hmac_key: "key"
+
+config :tmate, :master,
+  nodes: [],
+  session_url_fmt: "http://localhost:4000/t/%s"

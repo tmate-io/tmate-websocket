@@ -9,6 +9,7 @@ config :tmate, :daemon,
 config :tmate, :websocket,
   listener: :ranch_tcp,
   ranch_opts: [port: 4001],
+  cowboy_opts: %{compress: true},
   host: "localhost"
 
 config :tmate, :master,
