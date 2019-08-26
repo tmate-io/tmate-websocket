@@ -18,7 +18,7 @@ COPY test test
 COPY config config
 COPY rel rel
 
-RUN mix distillery.release
+RUN mix distillery.release --no-tar
 
 ### Minimal run-time image
 FROM alpine:3.9
