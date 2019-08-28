@@ -18,4 +18,4 @@ config :tmate, :webhook,
      userdata: "webhookkey"]]
 
 config :tmate, :master,
-  base_url: "http://localhost:4000/"
+  user_facing_base_url: "http://localhost:4000/"

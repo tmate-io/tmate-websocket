@@ -12,3 +12,6 @@ config :tmate, :websocket,
 
 config :tmate, :webhook,
   webhooks: []
+
+config :tmate, :master,
+  user_facing_base_url: "http://localhost:4000/"

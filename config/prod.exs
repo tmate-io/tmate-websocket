@@ -4,7 +4,8 @@ use Mix.Config
 
 config :logger, :console,
   format: "$time $metadata[$level] $message\n",
-  metadata: [:session_id]
+  metadata: [:session_id],
+  level: :info
 
 config :tmate, :daemon,
   hmac_key: System.get_env("DAEMON_HMAC_KEY")
@@ -30,8 +31,8 @@ config :tmate, :websocket, Keyword.merge(websocket_ranch_opts,
 
 config :tmate, :webhook,
   webhooks: [
-    [url: "#{System.get_env("MASTER_BASE_URL")}wsapi/webhooks",
+    [url: "#{System.get_env("MASTER_BASE_URL")}wsapi/webhook",
      userdata: "#{System.get_env("MASTER_WSAPI_KEY")}"]]
 
 config :tmate, :master,
-  base_url: System.get_env("MASTER_BASE_URL")
+  user_facing_base_url: System.get_env("USER_FACING_BASE_URL")

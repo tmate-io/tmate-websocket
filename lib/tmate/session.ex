@@ -179,8 +179,8 @@ defmodule Tmate.Session do
     webhook_opts_list = if user_webhook_opts[:url], do: webhook_opts_list ++ [user_webhook_opts], else: webhook_opts_list
     state = setup_webhooks(state, webhook_opts_list)
 
-    master_base_url = Application.get_env(:tmate, :master)[:base_url]
-    web_url_fmt = "#{master_base_url}t/%s"
+    user_facing_base_url = Application.get_env(:tmate, :master)[:user_facing_base_url]
+    web_url_fmt = "#{user_facing_base_url}t/%s"
 
     event_payload = %{ip_address: ip_address, pubkey: pubkey, client_version: client_version,
                       stoken: stoken, stoken_ro: stoken_ro, reconnected: reconnected,
