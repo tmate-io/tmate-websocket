@@ -13,50 +13,54 @@ defmodule Tmate.Webhook do
   use GenServer
   require Logger
 
-  @max_retry 5
-  @retry_interval 3000
+  @max_attempts 10
+  @initial_retry_interval 300
 
   # We use a genserver per session because we don't want to block the session
   # process, but we still want to keep the events ordered.
 
-  def start_link(urls, opts \\ []) do
-    GenServer.start_link(__MODULE__, urls, opts)
+  def start_link(webhook, opts \\ []) do
+    GenServer.start_link(__MODULE__, webhook, opts)
   end
 
-  def init(urls) do
-    state = %{urls: urls}
+  def init(webhook) do
+    state = %{url: webhook[:url], userdata: webhook[:userdata]}
     {:ok, state}
   end
 
-  def emit_event(pid, event_type, entity_id, userdata, params \\ %{}) do
-    GenServer.cast(pid, {:emit_event, event_type, entity_id, userdata, params})
+  def emit_event(pid, event_type, entity_id, timestamp, params \\ %{}) do
+    GenServer.cast(pid, {:emit_event, event_type, entity_id, timestamp, params})
   end
 
-  def handle_cast({:emit_event, event_type, entity_id, userdata, params}, state) do
-    # TODO also include timestamp
-    payload = Poison.encode!(%{type: event_type, entity_id: entity_id, userdata: userdata, params: params})
-    state.urls |> Enum.each(& post_event(&1, event_type, payload, @max_retry))
+  def handle_cast({:emit_event, event_type, entity_id, timestamp, params}, state) do
+    payload = Jason.encode!(%{type: event_type, entity_id: entity_id, timestamp: timestamp,
+                              userdata: state.userdata, params: params})
+    post_event(state.url, event_type, payload, 0)
     {:noreply, state}
   end
 
-  defp post_event(url, event_type, payload, retry_count) do
+  defp post_event(url, event_type, payload, num_attempts) do
     case post_event_once(url, payload) do
       :ok -> :ok
       {:error, reason} ->
-        case retry_count do
-          0 ->
-            Logger.warn "Webhook fail on #{url} - Dropping event :#{event_type} (#{reason})"
+        if num_attempts == 0 do
+          Logger.warn "Webhook fail on #{url} - Retrying event :#{event_type} (#{reason})"
+        end
+
+        case num_attempts do
+          @max_attempts ->
+            Logger.error "Webhook fail on #{url} - Dropping event :#{event_type} (#{reason})"
             :error
           _ ->
-            :timer.sleep(@retry_interval)
-            post_event(url, event_type, payload, retry_count - 1)
+            :timer.sleep(@initial_retry_interval * Kernel.trunc(:math.pow(2, num_attempts)))
+            post_event(url, event_type, payload, num_attempts + 1)
         end
     end
   end
 
   defp post_event_once(url, payload) do
     headers = [{"Content-Type", "application/json"}, {"Accept", "application/json"}]
-    case HTTPoison.post(url, payload, headers) do
+    case HTTPoison.post(url, payload, headers, hackney: [pool: :default]) do
       {:ok, %HTTPoison.Response{status_code: status_code}} when status_code >= 200 and status_code  < 300 ->
         :ok
       {:ok, %HTTPoison.Response{status_code: status_code}} ->

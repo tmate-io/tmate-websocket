@@ -31,15 +31,8 @@ defmodule Tmate.SessionRegistry do
   end
 
   def handle_call({:new_session, daemon_args}, _from, state) do
-    {:ok, master_options} = Application.fetch_env(:tmate, :master)
-    master_endpoint = if master_options[:nodes] && master_options[:nodes] != [],
-                        do: Tmate.MasterEndpoint, else: Tmate.MasterEndpoint.Null
-
-    {:ok, webhook_options} = Application.fetch_env(:tmate, :webhook)
-    webhook = if webhook_options[:enabled], do: Tmate.Webhook, else: Tmate.Webhook.Null
-
-    result = Tmate.SessionSupervisor.start_session(state.supervisor,
-               [master_endpoint, webhook, daemon_args])
+    webhook_mod = Tmate.Webhook
+    result = Tmate.SessionSupervisor.start_session(state.supervisor, [webhook_mod, daemon_args])
     {:reply, result, state}
   end
 

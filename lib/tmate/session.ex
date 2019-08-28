@@ -7,19 +7,18 @@ defmodule Tmate.Session do
   @max_snapshot_lines 300
   @latest_version "2.2.1"
 
-  def start_link(master, webhook, daemon, opts \\ []) do
-    GenServer.start_link(__MODULE__, {master, webhook, daemon}, opts)
+  def start_link(webhook_mod, daemon, opts \\ []) do
+    GenServer.start_link(__MODULE__, {webhook_mod, daemon}, opts)
   end
 
-  def init({master, webhook, daemon}) do
-    state = %{master: master, webhook: webhook, daemon: daemon,
-              init_state: nil, webhook_pid: nil, webhook_userdata: nil,
+  def init({webhook_mod, daemon}) do
+    state = %{webhook_mod: webhook_mod, daemon: daemon,
+              init_state: nil, webhook_pids: [],
               pending_ws_subs: [], ws_subs: [],
               daemon_protocol_version: -1,
               host_latency: -1, host_latency_stats: Tmate.Stats.new,
               current_layout: [], clients: %{}}
 
-    :pong = master.ping_master
     Process.flag(:trap_exit, true)
     {:ok, state}
   end
@@ -40,9 +39,8 @@ defmodule Tmate.Session do
     end)
 
     Process.exit(daemon_pid(state), reason)
-    if state[:webhook_pid] do
-      Process.exit(state.webhook_pid, reason)
-    end
+
+    state.webhook_pids |> Enum.each(& Process.exit(&1, reason))
 
     {:stop, reason, state}
   end
@@ -105,10 +103,10 @@ defmodule Tmate.Session do
   end
 
   defp emit_event(state, event_type, params \\ %{}) do
-    if state[:webhook_pid] do
-      state.webhook.emit_event(state.webhook_pid, event_type, state.id, state[:webhook_userdata], params)
-    end
-    :ok = state.master.emit_event(event_type, state.id, params)
+    timestamp = DateTime.utc_now
+    state.webhook_pids |> Enum.each(fn pid ->
+      state.webhook_mod.emit_event(pid, event_type, state.id, timestamp, params)
+    end)
   end
 
   def pack_and_sign!(value) do
@@ -144,16 +142,20 @@ defmodule Tmate.Session do
     :ok = File.ln_s(stoken, p.(stoken_ro))
   end
 
-  defp setup_webhooks(state, [], _userdata), do: state
-  defp setup_webhooks(state, webhook_urls, userdata) do
-    {:ok, webhook_pid} = state.webhook.start_link(webhook_urls)
-    %{state | webhook_pid: webhook_pid, webhook_userdata: userdata}
+  defp setup_webhooks(state, []), do: state
+  defp setup_webhooks(state, webhook_opts_list) do
+    webhook_pids = webhook_opts_list |> Enum.map(fn webhook_opts ->
+      {:ok, pid} = state.webhook_mod.start_link(webhook_opts)
+      pid
+    end)
+
+    %{state | webhook_pids: webhook_pids}
   end
 
   defp finalize_session_init(%{init_state: %{ip_address: ip_address, pubkey: pubkey, stoken: stoken,
       stoken_ro: stoken_ro, ssh_cmd_fmt: ssh_cmd_fmt,
       client_version: client_version, reconnection_data: reconnection_data,
-      user_defined_webhook_urls: user_defined_webhook_urls, webhook_userdata: webhook_userdata}}=state) do
+      user_webhook_opts: user_webhook_opts}}=state) do
     old_stoken = stoken
     old_stoken_ro = stoken_ro
 
@@ -173,7 +175,9 @@ defmodule Tmate.Session do
     :ok = Tmate.SessionRegistry.register_session(Tmate.SessionRegistry, self(), stoken, stoken_ro)
 
     {:ok, webhook_options} = Application.fetch_env(:tmate, :webhook)
-    state = setup_webhooks(state, webhook_options[:urls] ++ user_defined_webhook_urls, webhook_userdata)
+    webhook_opts_list = webhook_options[:webhooks]
+    webhook_opts_list = if user_webhook_opts[:url], do: webhook_opts_list ++ [user_webhook_opts], else: webhook_opts_list
+    state = setup_webhooks(state, webhook_opts_list)
 
     master_base_url = Application.get_env(:tmate, :master)[:base_url]
     web_url_fmt = "#{master_base_url}t/%s"
@@ -192,13 +196,17 @@ defmodule Tmate.Session do
     web_url = String.replace(web_url_fmt, "%s", stoken)
     web_url_ro = String.replace(web_url_fmt, "%s", stoken_ro)
 
-    if reconnected && old_host != Tmate.host, do: notify_daemon(state, "The session has been reconnected to another server");
+    if reconnected && old_host != Tmate.host do
+      notify_daemon(state, "The session has been reconnected to another server");
+    end
     notify_daemon(state, "Note: clear your terminal before sharing readonly access")
     notify_daemon(state, "web session read only: #{web_url_ro}")
     notify_daemon(state, "ssh session read only: #{ssh_cmd_ro}")
     notify_daemon(state, "web session: #{web_url}")
     notify_daemon(state, "ssh session: #{ssh_cmd}")
-    if reconnected && old_host == Tmate.host, do: notify_daemon(state, "Reconnected");
+    if reconnected && old_host == Tmate.host do
+      notify_daemon(state, "Reconnected")
+    end
 
     daemon_set_env(state, "tmate_web_ro", web_url_ro)
     daemon_set_env(state, "tmate_ssh_ro", ssh_cmd_ro)
@@ -225,8 +233,7 @@ defmodule Tmate.Session do
                               client_version, daemon_protocol_version]) do
     init_state = %{ip_address: ip_address, pubkey: pubkey, stoken: stoken, stoken_ro: stoken_ro,
                    client_version: client_version, ssh_cmd_fmt: ssh_cmd_fmt,
-                   reconnection_data: nil, user_defined_webhook_urls: [], webhook_userdata: nil}
-
+                   reconnection_data: nil, user_webhook_opts: [url: nil, userdata: ""]}
     state = %{state | daemon_protocol_version: daemon_protocol_version, init_state: init_state}
 
     if daemon_protocol_version >= 6 do
@@ -305,16 +312,13 @@ defmodule Tmate.Session do
   end
 
   defp handle_daemon_exec_cmd(state, ["set-option", "-g", "tmate-webhook-userdata", webhook_userdata]) do
-    %{state | init_state: %{state.init_state | webhook_userdata: webhook_userdata}}
+    user_webhook_opts = Keyword.put(state.init_state.user_webhook_opts, :userdata, webhook_userdata)
+    %{state | init_state: %{state.init_state | user_webhook_opts: user_webhook_opts}}
   end
 
   defp handle_daemon_exec_cmd(state, ["set-option", "-g", "tmate-webhook-url", webhook_url]) do
-    {:ok, webhook_options} = Application.fetch_env(:tmate, :webhook)
-    if webhook_options[:allow_user_defined_urls] do
-      %{state | init_state: %{state.init_state | user_defined_webhook_urls: [webhook_url]}}
-    else
-      state
-    end
+    user_webhook_opts = Keyword.put(state.init_state.user_webhook_opts, :url, webhook_url)
+    %{state | init_state: %{state.init_state | user_webhook_opts: user_webhook_opts}}
   end
 
   defp handle_daemon_exec_cmd(state, _args) do
@@ -395,15 +399,15 @@ defmodule Tmate.Session do
 
   defp update_client_presence(state, client, join) do
     notify_client_presence_daemon(state, client, join)
-    notify_client_presence_master(state, client, join)
+    notify_client_presence_webhooks(state, client, join)
   end
 
-  defp notify_client_presence_master(state, client, true) do
+  defp notify_client_presence_webhooks(state, client, true) do
     {client_info, _} = Map.split(client, [:id, :type, :ip_address, :identity, :readonly])
     emit_event(state, :session_join, client_info)
   end
 
-  defp notify_client_presence_master(state, client, false) do
+  defp notify_client_presence_webhooks(state, client, false) do
     emit_latency_stats(state, client.id, client.latency_stats)
     emit_event(state, :session_left, %{id: client.id})
   end
@@ -473,14 +477,14 @@ defmodule Tmate.Session do
     :ok
   end
 
-  defp ssh_exec(state, ["identify", token], username, ip_address, pubkey) do
-    case state.master.identify_client(token, username, ip_address, pubkey) do
-      {:ok, message} -> notify_exec_response(state, 0, message)
-      {:error, reason} ->
-        notify_exec_response(state, 1, "Internal error")
-        raise reason
-    end
-  end
+  # defp ssh_exec(state, ["identify", token], username, ip_address, pubkey) do
+    # case state.master.identify_client(token, username, ip_address, pubkey) do
+      # {:ok, message} -> notify_exec_response(state, 0, message)
+      # {:error, reason} ->
+        # notify_exec_response(state, 1, "Internal error")
+        # raise reason
+    # end
+  # end
 
   defp ssh_exec(state, _command, _username, _ip_address, _pubkey) do
     notify_exec_response(state, 1, "Invalid command")

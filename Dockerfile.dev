@@ -19,6 +19,6 @@ COPY config config
 RUN mix compile
 
 CMD mkfifo console; sleep 1000d > console & cat console | \
-  iex --name local@127.0.0.1 \
+  iex --name websocket@session \
       --cookie cookie \
       -S mix

@@ -16,12 +16,11 @@ defmodule Tmate.Mixfile do
   #
   # Type `mix help compile.app` for more information
   def application do
-    # XXX Probably very gross, not sure how not to start listening on ports and all.
     case Mix.env do
       :test -> [mod: {ExUnit, []}, applications: [:logger]]
       _ ->     [mod: {Tmate, []},  applications: [:logger, :ranch, :cowboy,
                                    :plug, :uuid, :message_pack,
-                                   :quantile_estimator, :poison, :httpoison]]
+                                   :quantile_estimator, :jason, :httpoison]]
     end
   end
 
@@ -34,7 +33,7 @@ defmodule Tmate.Mixfile do
       {:cowboy, "~> 2.0"},
       {:plug, "~> 1.0"},
       {:uuid, "~> 1.1" },
-      {:poison, ">= 0.0.0"},
+      {:jason, ">= 0.0.0"},
       {:httpoison, ">= 0.0.0"},
       {:quantile_estimator, github: "nviennot/quantile_estimator"},
       {:message_pack, github: "nviennot/msgpack-elixir"},
