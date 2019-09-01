@@ -187,7 +187,8 @@ defmodule Tmate.Session do
                       ssh_cmd_fmt: ssh_cmd_fmt, ws_url_fmt: Tmate.WebSocket.ws_url_fmt,
                       web_url_fmt: web_url_fmt}
 
-    Logger.info("Session #{if reconnected, do: "reconnected", else: "started"} (#{stoken})")
+    Logger.info("Session #{if reconnected, do: "reconnected", else: "started"
+                 } (#{stoken |> String.slice(0, 4)}...)")
     emit_event(state, :session_register, event_payload)
 
     ssh_cmd = String.replace(ssh_cmd_fmt, "%s", stoken)
