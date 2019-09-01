@@ -218,7 +218,7 @@ defmodule Tmate.Session do
 
     daemon_send_client_ready(state)
 
-    maybe_notice_version_upgrade(client_version)
+    # maybe_notice_version_upgrade(client_version)
 
     %{state | init_state: nil}
   end
