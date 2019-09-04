@@ -38,6 +38,12 @@ defmodule Tmate.Session do
       emit_latency_stats(state, client.id, client.latency_stats)
     end)
 
+    if reason == :normal do
+      emit_event(state, :session_close)
+    else
+      emit_event(state, :session_disconnect)
+    end
+
     Process.exit(daemon_pid(state), reason)
 
     state.webhook_pids |> Enum.each(& Process.exit(&1, reason))
@@ -299,7 +305,6 @@ defmodule Tmate.Session do
   end
 
   defp handle_daemon_msg(state, [P.tmate_out_fin]) do
-    emit_event(state, :session_close)
     Process.exit(self(), :normal)
     state
   end
