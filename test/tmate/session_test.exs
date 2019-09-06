@@ -26,7 +26,7 @@ defmodule Tmate.SessionTest do
     children = [worker(Tmate.SessionRegistry, [[name: Tmate.SessionRegistry]])]
     Supervisor.start_link(children, [strategy: :one_for_one, name: Tmate.Supervisor])
 
-    {:ok, session} = Session.start_link(Tmate.MasterEndpoint.Null, Tmate.Webhook.Null, {Daemon, self()})
+    {:ok, session} = Session.start_link(Tmate.Webhook.Null, {Daemon, self()})
     {:ok, session: session}
   end
 
