@@ -13,7 +13,8 @@ defmodule Tmate.Webhook do
   use GenServer
   require Logger
 
-  @max_attempts 10
+  # ~2.7 hours of retries
+  @max_attempts 14
   @initial_retry_interval 300
 
   # We use a genserver per session because we don't want to block the session
