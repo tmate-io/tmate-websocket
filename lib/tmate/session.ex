@@ -182,7 +182,14 @@ defmodule Tmate.Session do
 
     {:ok, webhook_options} = Application.fetch_env(:tmate, :webhook)
     webhook_opts_list = webhook_options[:webhooks]
-    webhook_opts_list = if user_webhook_opts[:url], do: webhook_opts_list ++ [user_webhook_opts], else: webhook_opts_list
+
+    webhook_opts_list = if user_webhook_opts[:url] do
+      Logger.info("User webhook: #{inspect(user_webhook_opts)}")
+      webhook_opts_list ++ [user_webhook_opts]
+    else
+      webhook_opts_list
+    end
+
     state = setup_webhooks(state, webhook_opts_list)
 
     user_facing_base_url = Application.get_env(:tmate, :master)[:user_facing_base_url]
