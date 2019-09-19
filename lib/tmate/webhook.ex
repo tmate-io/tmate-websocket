@@ -61,7 +61,8 @@ defmodule Tmate.Webhook do
 
   defp post_event_once(url, payload) do
     headers = [{"Content-Type", "application/json"}, {"Accept", "application/json"}]
-    case HTTPoison.post(url, payload, headers, hackney: [pool: :default]) do
+    # We need force_redirect: true, otherwise, post data doesn't get reposted.
+    case HTTPoison.post(url, payload, headers, hackney: [pool: :default, force_redirect: true], follow_redirect: true) do
       {:ok, %HTTPoison.Response{status_code: status_code}} when status_code >= 200 and status_code  < 300 ->
         :ok
       {:ok, %HTTPoison.Response{status_code: status_code}} ->
