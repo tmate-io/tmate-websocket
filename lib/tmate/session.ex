@@ -178,8 +178,8 @@ defmodule Tmate.Session do
     state = Map.merge(state, %{id: id})
     Logger.metadata(session_id: state.id)
 
-    :ok = Tmate.SessionRegistry.register_session(Tmate.SessionRegistry, self(), stoken, stoken_ro)
-
+    :ok = Tmate.SessionRegistry.register_session(Tmate.SessionRegistry,
+            self(), state.id, stoken, stoken_ro)
     {:ok, webhook_options} = Application.fetch_env(:tmate, :webhook)
     webhook_opts_list = webhook_options[:webhooks]
 

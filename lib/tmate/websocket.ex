@@ -6,12 +6,6 @@ defmodule Tmate.WebSocket do
 
   @ping_interval_sec 10
 
-  def cowboy_dispatch do
-    :cowboy_router.compile([{:_, [
-      {"/ws/session/:stoken", __MODULE__, []},
-    ]}])
-  end
-
   def init(req, _opts) do
     stoken = Request.binding(:stoken, req)
     Logger.metadata([stoken: stoken])

@@ -19,7 +19,7 @@ defmodule Tmate.Mixfile do
     case Mix.env do
       :test -> [mod: {ExUnit, []}, applications: [:logger]]
       _ ->     [mod: {Tmate, []},  applications: [:logger, :ranch, :cowboy,
-                                   :plug, :uuid, :message_pack,
+                                   :plug, :plug_cowboy, :uuid, :message_pack,
                                    :quantile_estimator, :jason, :httpoison]]
     end
   end
@@ -32,6 +32,7 @@ defmodule Tmate.Mixfile do
       {:ranch, "~> 1.0"},
       {:cowboy, "~> 2.0"},
       {:plug, "~> 1.0"},
+      {:plug_cowboy, "~> 2.0"},
       {:uuid, "~> 1.1" },
       {:jason, ">= 0.0.0"},
       {:httpoison, ">= 0.0.0"},

@@ -26,7 +26,8 @@ config :tmate, :websocket, Keyword.merge(websocket_ranch_opts,
   cowboy_opts: %{
     compress: true,
     proxy_header: System.get_env("USE_PROXY_PROTOCOL") == "1"},
-  base_url: System.get_env("WEBSOCKET_BASE_URL")
+  base_url: System.get_env("WEBSOCKET_BASE_URL"),
+  wsapi_key: System.get_env("MASTER_WSAPI_KEY")
 )
 
 config :tmate, :webhook,

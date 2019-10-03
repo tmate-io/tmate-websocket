@@ -3,7 +3,7 @@ defmodule Tmate.SessionRegistry do
   require Logger
 
   require Record
-  Record.defrecord :session, [:stoken, :stoken_ro, :pid, :monitor]
+  Record.defrecord :session, [:stoken, :stoken_ro, :id, :pid, :monitor]
 
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, :ok, opts)
@@ -18,12 +18,16 @@ defmodule Tmate.SessionRegistry do
     GenServer.call(registry, {:new_session, daemon_args}, :infinity)
   end
 
-  def register_session(registry, pid, stoken, stoken_ro) do
-    GenServer.call(registry, {:register_session, pid, stoken, stoken_ro}, :infinity)
+  def register_session(registry, pid, id, stoken, stoken_ro) do
+    GenServer.call(registry, {:register_session, pid, id, stoken, stoken_ro}, :infinity)
   end
 
   def get_session(registry, token) do
     GenServer.call(registry, {:get_session, token}, :infinity)
+  end
+
+  def get_session_by_id(registry, id) do
+    GenServer.call(registry, {:get_session_by_id, id}, :infinity)
   end
 
   defmacrop lookup_session(state, what, token) do
@@ -36,8 +40,8 @@ defmodule Tmate.SessionRegistry do
     {:reply, result, state}
   end
 
-  def handle_call({:register_session, pid, stoken, stoken_ro}, _from, state) do
-    {:reply, :ok, add_session(state, pid, stoken, stoken_ro)}
+  def handle_call({:register_session, pid, id, stoken, stoken_ro}, _from, state) do
+    {:reply, :ok, add_session(state, pid, id, stoken, stoken_ro)}
   end
 
   def handle_call({:get_session, token}, _from, state) do
@@ -50,17 +54,27 @@ defmodule Tmate.SessionRegistry do
     end
   end
 
-  defp add_session(state, pid, stoken, stoken_ro) do
-    if s = lookup_session(state, :stoken,    stoken   ) ||
+  def handle_call({:get_session_by_id, id}, _from, state) do
+    cond do
+      session = lookup_session(state, :id, id) ->
+        {:reply, session(session, :pid), state}
+      true -> {:reply, :error, state}
+    end
+  end
+
+  defp add_session(state, pid, id, stoken, stoken_ro) do
+    if s = lookup_session(state, :id,        id   ) ||
+           lookup_session(state, :stoken,    stoken   ) ||
            lookup_session(state, :stoken,    stoken_ro) ||
            lookup_session(state, :stoken_ro, stoken_ro) ||
            lookup_session(state, :stoken_ro, stoken   ) do
-      Logger.info("Removing stale session (#{stoken})")
+      Logger.info("Replacing stale session #{id}")
       state = kill_session(state, s)
-      add_session(state, pid, stoken, stoken_ro)
+      add_session(state, pid, id, stoken, stoken_ro)
     else
       monitor = Process.monitor(pid)
-      new_session = session(stoken: stoken, stoken_ro: stoken_ro, pid: pid, monitor: monitor)
+      new_session = session(stoken: stoken, stoken_ro: stoken_ro,
+                            id: id, pid: pid, monitor: monitor)
       %{state | sessions: [new_session | state.sessions]}
     end
   end

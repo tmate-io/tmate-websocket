@@ -10,7 +10,8 @@ config :tmate, :websocket,
   listener: :ranch_tcp,
   ranch_opts: [port: 4001],
   cowboy_opts: %{compress: true},
-  base_url: "ws://localhost:4001/"
+  base_url: "ws://localhost:4001/",
+  wsapi_key: "webhookkey"
 
 config :tmate, :webhook,
   webhooks: [
