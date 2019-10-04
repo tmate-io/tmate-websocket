@@ -7,12 +7,12 @@ defmodule Tmate.Session do
   @max_snapshot_lines 300
   @latest_version "2.2.1"
 
-  def start_link(webhook_mod, daemon, opts \\ []) do
-    GenServer.start_link(__MODULE__, {webhook_mod, daemon}, opts)
+  def start_link(webhooks, daemon, opts \\ []) do
+    GenServer.start_link(__MODULE__, {webhooks, daemon}, opts)
   end
 
-  def init({webhook_mod, daemon}) do
-    state = %{webhook_mod: webhook_mod, daemon: daemon,
+  def init({webhooks, daemon}) do
+    state = %{webhooks: webhooks, daemon: daemon,
               init_state: nil, webhook_pids: [],
               pending_ws_subs: [], ws_subs: [],
               daemon_protocol_version: -1,
@@ -46,7 +46,7 @@ defmodule Tmate.Session do
 
     Process.exit(daemon_pid(state), reason)
 
-    state.webhook_pids |> Enum.each(& Process.exit(&1, reason))
+    Tmate.Webhook.Many.exit(state.webhook_pids, reason)
 
     {:stop, reason, state}
   end
@@ -110,9 +110,8 @@ defmodule Tmate.Session do
 
   defp emit_event(state, event_type, params \\ %{}) do
     timestamp = DateTime.utc_now
-    state.webhook_pids |> Enum.each(fn pid ->
-      state.webhook_mod.emit_event(pid, event_type, state.id, timestamp, params)
-    end)
+    Tmate.Webhook.Many.emit_event(state.webhooks, state.webhook_pids,
+      event_type, state.id, timestamp, params)
   end
 
   def pack_and_sign!(value) do
@@ -148,16 +147,6 @@ defmodule Tmate.Session do
     :ok = File.ln_s(stoken, p.(stoken_ro))
   end
 
-  defp setup_webhooks(state, []), do: state
-  defp setup_webhooks(state, webhook_opts_list) do
-    webhook_pids = webhook_opts_list |> Enum.map(fn webhook_opts ->
-      {:ok, pid} = state.webhook_mod.start_link(webhook_opts)
-      pid
-    end)
-
-    %{state | webhook_pids: webhook_pids}
-  end
-
   defp finalize_session_init(%{init_state: %{ip_address: ip_address, pubkey: pubkey, stoken: stoken,
       stoken_ro: stoken_ro, ssh_cmd_fmt: ssh_cmd_fmt,
       client_version: client_version, reconnection_data: reconnection_data,
@@ -180,17 +169,14 @@ defmodule Tmate.Session do
 
     :ok = Tmate.SessionRegistry.register_session(Tmate.SessionRegistry,
             self(), state.id, stoken, stoken_ro)
-    {:ok, webhook_options} = Application.fetch_env(:tmate, :webhook)
-    webhook_opts_list = webhook_options[:webhooks]
 
-    webhook_opts_list = if user_webhook_opts[:url] do
+    webhooks = if user_webhook_opts[:url] do
       Logger.info("User webhook: #{inspect(user_webhook_opts)}")
-      webhook_opts_list ++ [user_webhook_opts]
+      state.webhooks ++ [{Tmate.Webhook, user_webhook_opts}]
     else
-      webhook_opts_list
+      state.webhooks
     end
-
-    state = setup_webhooks(state, webhook_opts_list)
+    state = %{state | webhook_pids: Tmate.Webhook.Many.start_links(webhooks)}
 
     user_facing_base_url = Application.get_env(:tmate, :master)[:user_facing_base_url]
     web_url_fmt = "#{user_facing_base_url}t/%s"

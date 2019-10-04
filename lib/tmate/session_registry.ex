@@ -5,13 +5,13 @@ defmodule Tmate.SessionRegistry do
   require Record
   Record.defrecord :session, [:stoken, :stoken_ro, :id, :pid, :monitor]
 
-  def start_link(opts \\ []) do
-    GenServer.start_link(__MODULE__, :ok, opts)
+  def start_link(webhooks, opts \\ []) do
+    GenServer.start_link(__MODULE__, webhooks, opts)
   end
 
-  def init(:ok) do
+  def init(webhooks) do
     {:ok, supervisor} = Tmate.SessionSupervisor.start_link
-    {:ok, %{supervisor: supervisor, sessions: []}}
+    {:ok, %{supervisor: supervisor, sessions: [], webhooks: webhooks}}
   end
 
   def new_session(registry, daemon_args) do
@@ -35,8 +35,7 @@ defmodule Tmate.SessionRegistry do
   end
 
   def handle_call({:new_session, daemon_args}, _from, state) do
-    webhook_mod = Tmate.Webhook
-    result = Tmate.SessionSupervisor.start_session(state.supervisor, [webhook_mod, daemon_args])
+    result = Tmate.SessionSupervisor.start_session(state.supervisor, [state.webhooks, daemon_args])
     {:reply, result, state}
   end
 

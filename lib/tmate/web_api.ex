@@ -3,10 +3,10 @@ defmodule Tmate.WebApi do
   use Plug.Router
   use Plug.ErrorHandler
 
-  def cowboy_dispatch do
+  def cowboy_dispatch(webhooks) do
     :cowboy_router.compile([{:_, [
       {"/ws/session/:stoken", Tmate.WebSocket, []},
-      {:_, Plug.Cowboy.Handler, {__MODULE__, [webhook_mod: Tmate.Webhook]}},
+      {:_, Plug.Cowboy.Handler, {__MODULE__, [webhooks: webhooks]}},
     ]}])
   end
 
@@ -21,10 +21,8 @@ defmodule Tmate.WebApi do
 
   post "/master_api/report_active_sessions" do
     ensure_master_auth!(conn.body_params)
-    case report_active_sessions(conn.body_params, opts) do
-      :error -> send_resp(conn, 503, '{"error": "webhook failed"}')
-      :ok    -> send_resp(conn, 200, "{}")
-    end
+    report_active_sessions(conn.body_params, opts)
+    send_resp(conn, 200, "{}")
   end
 
   defp ensure_master_auth!(%{"auth_key" => auth_key}) do
@@ -47,17 +45,17 @@ defmodule Tmate.WebApi do
 
   defp prune_master_sessions([], _opts), do: nil
   defp prune_master_sessions(session_ids, opts) do
-    timestamp = DateTime.utc_now
-    webhook_mod = opts[:webhook_mod]
+    webhooks = opts[:webhooks]
 
-    {:ok, webhook_options} = Application.fetch_env(:tmate, :webhook)
-    results = Enum.flat_map(webhook_options[:webhooks], fn webhook ->
-      Enum.map(session_ids, fn id ->
-        webhook_mod.emit_event_sync(webhook, :session_disconnect, id, timestamp)
-      end)
+    pids = Tmate.Webhook.Many.start_links(webhooks)
+
+    timestamp = DateTime.utc_now
+    Enum.each(session_ids, fn id ->
+      Tmate.Webhook.Many.emit_event(webhooks, pids,
+        :session_disconnect, id, timestamp, %{}, max_attempts: 1)
     end)
 
-    if Enum.any?(results, & &1 == :error), do: :error, else: :ok
+    Tmate.Webhook.Many.exit(pids, :normal)
   end
 
   match _ do
