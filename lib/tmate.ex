@@ -15,15 +15,16 @@ defmodule Tmate do
 
     webhooks = webhook_options[:webhooks] |> Enum.map(& {Tmate.Webhook, &1})
     registry = {Tmate.SessionRegistry, Tmate.SessionRegistry}
+    session_opts = [webhooks: webhooks, registry: registry]
 
     children = [
       :ranch.child_spec(:daemon_tcp, 3, :ranch_tcp, daemon_options[:ranch_opts],
-                        Tmate.DaemonTcp, [webhooks: webhooks, registry: registry]),
+                        Tmate.DaemonTcp, session_opts),
       worker(Tmate.SessionRegistry, [[name: Tmate.SessionRegistry]]),
     ]
 
     children = unless websocket_options[:enabled] == false do
-      cowboy_opts = Map.merge(%{env: %{dispatch: Tmate.WebApi.Router.cowboy_dispatch(webhooks)}},
+      cowboy_opts = Map.merge(%{env: %{dispatch: Tmate.WebApi.Router.cowboy_dispatch(session_opts)}},
                               websocket_options[:cowboy_opts])
       children ++ [
         :ranch.child_spec(:websocket_tcp, 3, websocket_options[:listener], websocket_options[:ranch_opts],

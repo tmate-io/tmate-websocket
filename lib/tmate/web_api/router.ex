@@ -26,10 +26,12 @@ defmodule Tmate.WebApi.Router do
   end
   defp ensure_master_auth!(_), do: raise Error.Unauthorized
 
-  post "/master_api/report_active_sessions" do
+  post "/master_api/get_stale_sessions" do
     ensure_master_auth!(conn)
-    Tmate.WebApi.MasterApi.report_active_sessions(conn, opts)
+    Tmate.WebApi.MasterApi.get_stale_sessions(conn, opts)
   end
+
+  # get "/ws/session/:stoken" is defined at the top
 
   match _ do
     send_resp(conn, 404, ":(")
