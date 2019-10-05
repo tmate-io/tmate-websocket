@@ -2,6 +2,12 @@ defmodule Tmate.Webhook do
   use GenServer
   require Logger
 
+  defmodule Event do
+    @enforce_keys [:type, :entity_id, :timestamp, :generation]
+    @derive Jason.Encoder
+    defstruct @enforce_keys ++ [:userdata, params: %{}]
+  end
+
   # We use a genserver per session because we don't want to block the session
   # process, but we still want to keep the events ordered.
   def start_link(webhook, opts \\ []) do
@@ -19,19 +25,19 @@ defmodule Tmate.Webhook do
     {:ok, state}
   end
 
-  def emit_event(pid, event_type, entity_id, timestamp, params \\ %{}) do
-    GenServer.cast(pid, {:emit_event, event_type, entity_id, timestamp, params})
+  def emit_event(pid, event) do
+    GenServer.cast(pid, {:emit_event, event})
   end
 
-  def handle_cast({:emit_event, event_type, entity_id, timestamp, params}, state) do
-    do_emit_event(event_type, entity_id, timestamp, params, state)
+  def handle_cast({:emit_event, event}, state) do
+    do_emit_event(event, state)
     {:noreply, state}
   end
 
-  defp do_emit_event(event_type, entity_id, timestamp, params, state) do
-    payload = Jason.encode!(%{type: event_type, entity_id: entity_id, timestamp: timestamp,
-                              userdata: state.userdata, params: params})
-    post_event(state, event_type, payload, 1)
+  defp do_emit_event(event, state) do
+    event = %{event | userdata: state.userdata}
+    payload = Jason.encode!(event)
+    post_event(state, event.type, payload, 1)
   end
 
   defp post_event(state, event_type, payload, num_attempts) do
@@ -74,10 +80,10 @@ defmodule Tmate.Webhook do
       end)
     end
 
-    def emit_event(webhooks, pids, event_type, entity_id, timestamp, params \\ %{}) do
+    def emit_event(webhooks, pids, event) do
       Enum.zip(webhooks, pids)
       |> Enum.each(fn {{webhook_mod, _webhook_opts}, pid} ->
-        webhook_mod.emit_event(pid, event_type, entity_id, timestamp, params)
+        webhook_mod.emit_event(pid, event)
       end)
     end
   end

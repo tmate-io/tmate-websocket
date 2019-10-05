@@ -17,9 +17,7 @@ defmodule Tmate.WebhookTest do
       {:ok, state}
     end
 
-    def emit_event(pid, event_type, entity_id, timestamp, params \\ %{}, _opts \\ []) do
-      event = %{event_type: event_type, id: entity_id, timestamp: timestamp, params: params}
-      # Not really necessary to go through the GenServer, but why not.
+    def emit_event(pid, event, _opts \\ []) do
       GenServer.cast(pid, {:emit_event, event})
     end
 

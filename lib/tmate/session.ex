@@ -133,8 +133,10 @@ defmodule Tmate.Session do
     Logger.debug("emit_event: #{event_type}")
 
     timestamp = DateTime.utc_now
-    Tmate.Webhook.Many.emit_event(state.webhooks, state.webhook_pids,
-      event_type, state.id, timestamp, params)
+    event = %Tmate.Webhook.Event{type: event_type, entity_id: state.id,
+              timestamp: timestamp, generation: state.generation, params: params}
+
+    Tmate.Webhook.Many.emit_event(state.webhooks, state.webhook_pids, event)
   end
 
   def pack_and_sign!(value) do
@@ -177,17 +179,19 @@ defmodule Tmate.Session do
     old_stoken = stoken
     old_stoken_ro = stoken_ro
 
-    [reconnected, id, stoken, stoken_ro, old_host] = case reconnection_data do
-      nil -> [false, UUID.uuid1, stoken, stoken_ro, nil]
-      rdata -> [true | rdata |> verify_and_unpack!]
+    {reconnected, [id, stoken, stoken_ro, old_host, generation]} = case reconnection_data do
+      nil ->            {false, [UUID.uuid1, stoken, stoken_ro, nil, 1]}
+      [2 | rdata_v2] -> {true, rdata_v2}
+      rdata_v1 ->       {true, rdata_v1 ++ [2]}
     end
+    new_reconnection_data = [2, id, stoken, stoken_ro, Tmate.host, generation+1]
 
     if old_stoken != stoken || old_stoken_ro != stoken_ro do
       rename_tmux_sockets!(old_stoken, old_stoken_ro, stoken, stoken_ro)
       send_daemon_msg(state, [P.tmate_ctl_rename_session, stoken, stoken_ro])
     end
 
-    state = Map.merge(state, %{id: id})
+    state = Map.merge(state, %{id: id, generation: generation})
     Logger.metadata(session_id: state.id)
 
     case state.registry do
@@ -213,7 +217,7 @@ defmodule Tmate.Session do
                       ssh_cmd_fmt: ssh_cmd_fmt, ws_url_fmt: WebSocket.ws_url_fmt,
                       web_url_fmt: web_url_fmt}
 
-    Logger.info("Session #{if reconnected, do: "reconnected", else: "started"
+    Logger.info("Session #{if reconnected, do: "reconnected (count=#{generation-1})", else: "started"
                  } (#{stoken |> String.slice(0, 4)}...)")
     emit_event(state, :session_register, event_payload)
 
@@ -240,8 +244,7 @@ defmodule Tmate.Session do
     daemon_set_env(state, "tmate_web",    web_url)
     daemon_set_env(state, "tmate_ssh",    ssh_cmd)
 
-    daemon_set_env(state, "tmate_reconnection_data",
-                  [id, stoken, stoken_ro, Tmate.host] |> pack_and_sign!)
+    daemon_set_env(state, "tmate_reconnection_data", pack_and_sign!(new_reconnection_data))
 
     daemon_send_client_ready(state)
 
@@ -321,6 +324,7 @@ defmodule Tmate.Session do
   end
 
   defp handle_daemon_msg(state, [P.tmate_out_reconnect, reconnection_data]) do
+    reconnection_data = verify_and_unpack!(reconnection_data)
     %{state | init_state: %{state.init_state | reconnection_data: reconnection_data}}
   end
 
