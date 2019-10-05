@@ -15,7 +15,7 @@ defmodule Tmate.Session do
     [webhooks: webhooks, registry: registry] = session_opts
 
     state = %{webhooks: webhooks, registry: registry,
-              daemon: daemon,
+              daemon: daemon, initialized: false,
               init_state: nil, webhook_pids: [],
               pending_ws_subs: [], ws_subs: [],
               daemon_protocol_version: -1,
@@ -36,13 +36,12 @@ defmodule Tmate.Session do
   end
 
   def handle_info({:EXIT, _linked_pid, reason}, state) do
-    # We don't get the EXIT signal if it's coming from our parent (daemon_tcp)
-    # In this case, terminate() is called directly.
-    # So we'll put all the logic in terminate()
+    # We must handle EXIT signals that are coming from non parent pids.
+    # In this case, we'll let terminate() deal with our cleanup.
     {:stop, reason, state}
   end
 
-  def terminate(reason, state) do
+  def terminate(reason, %{initialized: true}=state) do
     # Note: the daemon connection and webhooks are linked processes.
     # Any exits different tham :kill from these processes will land us here.
     # We can also get a :stale exit request from the registery.
@@ -65,6 +64,10 @@ defmodule Tmate.Session do
       _ -> emit_event(state, :session_disconnect)
     end
 
+    :ok
+  end
+
+  def terminate(_reason, _state) do
     :ok
   end
 
@@ -243,7 +246,7 @@ defmodule Tmate.Session do
 
     # maybe_notice_version_upgrade(client_version)
 
-    %{state | init_state: nil}
+    %{state | initialized: true, init_state: nil}
   end
 
   defp maybe_notice_version_upgrade(@latest_version), do: nil
@@ -251,18 +254,18 @@ defmodule Tmate.Session do
     delayed_notify_daemon(20 * 1000, "Your tmate client can be upgraded to #{@latest_version}")
   end
 
-  defp handle_ctl_msg(state, [P.tmate_ctl_header, 2=_protocol_version, ip_address, pubkey,
-                              stoken, stoken_ro, ssh_cmd_fmt,
-                              client_version, daemon_protocol_version]) do
+  defp handle_ctl_msg(%{initialized: false}=state,
+                      [P.tmate_ctl_header, 2=_protocol_version, ip_address, pubkey,
+                       stoken, stoken_ro, ssh_cmd_fmt, client_version, daemon_protocol_version]) do
     init_state = %{ip_address: ip_address, pubkey: pubkey, stoken: stoken, stoken_ro: stoken_ro,
                    client_version: client_version, ssh_cmd_fmt: ssh_cmd_fmt,
                    reconnection_data: nil, user_webhook_opts: [url: nil, userdata: ""]}
     state = %{state | daemon_protocol_version: daemon_protocol_version, init_state: init_state}
 
     if daemon_protocol_version >= 6 do
+      # we'll finalize when we get the ready message
       state
     else
-      # we'll finalize when we get the ready message
       finalize_session_init(state)
     end
   end
