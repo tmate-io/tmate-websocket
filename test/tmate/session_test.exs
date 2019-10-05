@@ -4,10 +4,6 @@ defmodule Tmate.SessionTest do
   require Tmate.ProtocolDefs, as: P
 
   defmodule Daemon do
-    def daemon_pid(pid) do
-      pid
-    end
-
     def send_msg(pid, msg) do
       send(pid, {:daemon_msg, msg})
     end

@@ -55,7 +55,7 @@ defmodule Tmate.WebApi do
         :session_disconnect, id, timestamp, %{}, max_attempts: 1)
     end)
 
-    Tmate.Webhook.Many.exit(pids, :normal)
+    # No need to manually kill the webhooks. They trap exits.
   end
 
   match _ do

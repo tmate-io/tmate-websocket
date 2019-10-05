@@ -14,6 +14,7 @@ defmodule Tmate.Webhook do
 
   def init(webhook) do
     state = %{url: webhook[:url], userdata: webhook[:userdata]}
+    Process.flag(:trap_exit, true)
     {:ok, state}
   end
 
@@ -78,10 +79,6 @@ defmodule Tmate.Webhook do
       |> Enum.each(fn {{webhook_mod, _webhook_opts}, pid} ->
         webhook_mod.emit_event(pid, event_type, entity_id, timestamp, params, opts)
       end)
-    end
-
-    def exit(pids, reason) do
-      Enum.each(pids, & Process.exit(&1, reason))
     end
   end
 

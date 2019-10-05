@@ -33,20 +33,27 @@ defmodule Tmate.Session do
   end
 
   def handle_info({:EXIT, _linked_pid, reason}, state) do
+    # Note: the daemon connection and webhooks are linked processes.
+    # Any exits different tham :kill from these processes will land us here.
+    # We can also get a :stale exit request from the registery.
+    # reason is typically:
+    # * {:shutdown, :session_fin}: client sent a fin message. Session is closed.
+    # * {:shutdown, :tcp_closed}: client disconnected. We can expect a reconnection.
+    # * {:shutdown, :stale}: client reconencted, and this session is now stale.
+
     emit_latency_stats(state, nil, state.host_latency_stats)
     state.clients |> Enum.each(fn {_ref, client} ->
       emit_latency_stats(state, client.id, client.latency_stats)
     end)
 
-    if reason == :normal do
-      emit_event(state, :session_close)
-    else
-      emit_event(state, :session_disconnect)
+    # We should put the following code in another process that monitors the
+    # current process. This way, if the current process crashes, we would
+    # still be able to send our disconnect message. But that's more work
+    # to implement.
+    case reason do
+      {:shutdown, :session_fin} -> emit_event(state, :session_close)
+      _ -> emit_event(state, :session_disconnect)
     end
-
-    Process.exit(daemon_pid(state), reason)
-
-    Tmate.Webhook.Many.exit(state.webhook_pids, reason)
 
     {:stop, reason, state}
   end
@@ -109,6 +116,8 @@ defmodule Tmate.Session do
   end
 
   defp emit_event(state, event_type, params \\ %{}) do
+    Logger.debug("emit_event: #{event_type}")
+
     timestamp = DateTime.utc_now
     Tmate.Webhook.Many.emit_event(state.webhooks, state.webhook_pids,
       event_type, state.id, timestamp, params)
@@ -298,7 +307,7 @@ defmodule Tmate.Session do
   end
 
   defp handle_daemon_msg(state, [P.tmate_out_fin]) do
-    Process.exit(self(), :normal)
+    Process.exit(self(), {:shutdown, :session_fin})
     state
   end
 
@@ -337,11 +346,6 @@ defmodule Tmate.Session do
     # This might be problematic.
     # TODO We might want to serialize the msg here to avoid doing it N times.
     for ws <- ws_list, do: Tmate.WebSocket.send_msg(ws, msg)
-  end
-
-  defp daemon_pid(state) do
-    {transport, handle} = state.daemon
-    transport.daemon_pid(handle)
   end
 
   defp send_daemon_msg(state, msg) do

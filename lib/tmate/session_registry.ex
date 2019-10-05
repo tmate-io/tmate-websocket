@@ -68,7 +68,7 @@ defmodule Tmate.SessionRegistry do
            lookup_session(state, :stoken_ro, stoken_ro) ||
            lookup_session(state, :stoken_ro, stoken   ) do
       Logger.info("Replacing stale session #{id}")
-      state = kill_session(state, s)
+      state = kill_session(state, s, {:shutdown, :stale})
       add_session(state, pid, id, stoken, stoken_ro)
     else
       monitor = Process.monitor(pid)
@@ -86,9 +86,9 @@ defmodule Tmate.SessionRegistry do
     %{state | sessions: List.keydelete(state.sessions, pid, session(:pid))}
   end
 
-  defp kill_session(state, session) do
+  defp kill_session(state, session, reason) do
     Process.demonitor(session(session, :monitor), [:flush])
-    Process.exit(session(session, :pid), :stale)
+    Process.exit(session(session, :pid), reason)
     cleanup_session(state, session(session, :pid))
   end
 end
