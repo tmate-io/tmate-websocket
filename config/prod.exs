@@ -33,7 +33,9 @@ config :tmate, :websocket, Keyword.merge(websocket_ranch_opts,
 config :tmate, :webhook,
   webhooks: [
     [url: "#{System.get_env("MASTER_BASE_URL")}wsapi/webhook",
-     userdata: "#{System.get_env("MASTER_WSAPI_KEY")}"]]
+     userdata: "#{System.get_env("MASTER_WSAPI_KEY")}"]],
+  max_attempts: 16, # ~2.7 hours of retries
+  initial_retry_interval: 300
 
 config :tmate, :master,
   user_facing_base_url: System.get_env("USER_FACING_BASE_URL")
