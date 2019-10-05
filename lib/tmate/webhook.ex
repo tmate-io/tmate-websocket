@@ -46,11 +46,11 @@ defmodule Tmate.Webhook do
       :ok -> :ok
       {:error, reason} ->
         if num_attempts == state.max_attempts do
-          Logger.error "Webhook fail on #{url} - Dropping event :#{event_type} (#{reason})"
+          Logger.error "Webhook fail on #{url} - Dropping event :#{event_type} (#{inspect(reason)})"
           :error
         else
           if num_attempts == 1 do
-            Logger.warn "Webhook fail on #{url} - Retrying event :#{event_type} (#{reason})"
+            Logger.warn "Webhook fail on #{url} - Retrying event :#{event_type} (#{inspect(reason)})"
           end
 
           :timer.sleep(state.initial_retry_interval * Kernel.trunc(:math.pow(2, num_attempts-1)))

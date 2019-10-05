@@ -13,5 +13,10 @@ config :tmate, :websocket,
   base_url: "ws://localhost:4001/",
   wsapi_key: "webhookkey"
 
+config :tmate, :webhook,
+  webhooks: [
+    [url: "http://master:4000/wsapi/webhook",
+     userdata: "webhookkey"]]
+
 config :tmate, :master,
   user_facing_base_url: "http://localhost:4000/"

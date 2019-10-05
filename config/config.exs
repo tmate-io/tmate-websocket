@@ -11,9 +11,7 @@ config :tmate, :daemon,
   tmux_socket_path: "/tmp/tmate/sessions"
 
 config :tmate, :webhook,
-  webhooks: [
-    [url: "http://master:4000/wsapi/webhook",
-     userdata: "webhookkey"]],
+  webhooks: [],
   max_attempts: 3,
   initial_retry_interval: 300
 
