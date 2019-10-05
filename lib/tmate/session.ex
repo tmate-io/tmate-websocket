@@ -7,12 +7,15 @@ defmodule Tmate.Session do
   @max_snapshot_lines 300
   @latest_version "2.2.1"
 
-  def start_link(webhooks, daemon, opts \\ []) do
-    GenServer.start_link(__MODULE__, {webhooks, daemon}, opts)
+  def start_link(session_opts, daemon, opts \\ []) do
+    GenServer.start_link(__MODULE__, {session_opts, daemon}, opts)
   end
 
-  def init({webhooks, daemon}) do
-    state = %{webhooks: webhooks, daemon: daemon,
+  def init({session_opts, daemon}) do
+    [webhooks: webhooks, registry: registry] = session_opts
+
+    state = %{webhooks: webhooks, registry: registry,
+              daemon: daemon,
               init_state: nil, webhook_pids: [],
               pending_ws_subs: [], ws_subs: [],
               daemon_protocol_version: -1,
@@ -33,6 +36,13 @@ defmodule Tmate.Session do
   end
 
   def handle_info({:EXIT, _linked_pid, reason}, state) do
+    # We don't get the EXIT signal if it's coming from our parent (daemon_tcp)
+    # In this case, terminate() is called directly.
+    # So we'll put all the logic in terminate()
+    {:stop, reason, state}
+  end
+
+  def terminate(reason, state) do
     # Note: the daemon connection and webhooks are linked processes.
     # Any exits different tham :kill from these processes will land us here.
     # We can also get a :stale exit request from the registery.
@@ -55,7 +65,7 @@ defmodule Tmate.Session do
       _ -> emit_event(state, :session_disconnect)
     end
 
-    {:stop, reason, state}
+    :ok
   end
 
   def ws_request_sub(session, ws, client) do
@@ -176,8 +186,12 @@ defmodule Tmate.Session do
     state = Map.merge(state, %{id: id})
     Logger.metadata(session_id: state.id)
 
-    :ok = Tmate.SessionRegistry.register_session(Tmate.SessionRegistry,
-            self(), state.id, stoken, stoken_ro)
+    case state.registry do
+      {} -> nil
+      {registry_mod, registry_pid} ->
+        :ok = registry_mod.register_session(registry_pid,
+                self(), state.id, stoken, stoken_ro)
+    end
 
     webhooks = if user_webhook_opts[:url] do
       Logger.info("User webhook: #{inspect(user_webhook_opts)}")

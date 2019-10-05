@@ -3,10 +3,10 @@ defmodule Tmate.WebApi do
   use Plug.Router
   use Plug.ErrorHandler
 
-  def cowboy_dispatch(webhooks) do
+  def cowboy_dispatch(session_opts) do
     :cowboy_router.compile([{:_, [
       {"/ws/session/:stoken", Tmate.WebSocket, []},
-      {:_, Plug.Cowboy.Handler, {__MODULE__, [webhooks: webhooks]}},
+      {:_, Plug.Cowboy.Handler, {__MODULE__, session_opts}},
     ]}])
   end
 
@@ -15,8 +15,8 @@ defmodule Tmate.WebApi do
   plug Plug.Logger, log: :debug
   plug :dispatch, builder_opts()
 
-  defmodule AuthError do
-    defexception message: "Forbidden", plug_status: 403
+  defmodule Error.Unauthorized do
+    defexception message: "Unauthorized", plug_status: 401
   end
 
   post "/master_api/report_active_sessions" do
@@ -28,14 +28,16 @@ defmodule Tmate.WebApi do
   defp ensure_master_auth!(%{"auth_key" => auth_key}) do
     {:ok, ws_options} = Application.fetch_env(:tmate, :websocket)
     if !Plug.Crypto.secure_compare(auth_key, ws_options[:wsapi_key]) do
-      raise AuthError
+      raise Error.Unauthorized
     end
   end
-  defp ensure_master_auth!(_), do: raise AuthError
+  defp ensure_master_auth!(_), do: raise Error.Unauthorized
 
   defp report_active_sessions(%{"sessions" => session_ids}, opts) when is_list(session_ids) do
+    {registry_mod, registry_pid} = opts[:registry]
+
     stale_ids = Enum.flat_map(session_ids, fn id ->
-      case Tmate.SessionRegistry.get_session_by_id(Tmate.SessionRegistry, id) do
+      case registry_mod.get_session_by_id(registry_pid, id) do
         :error -> [id]
         _ -> []
       end

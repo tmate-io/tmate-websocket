@@ -2,6 +2,7 @@ defmodule Tmate.SessionTest do
   use ExUnit.Case, async: true
   alias Tmate.Session
   require Tmate.ProtocolDefs, as: P
+  require Logger
 
   defmodule Daemon do
     def send_msg(pid, msg) do
@@ -18,11 +19,7 @@ defmodule Tmate.SessionTest do
   end
 
   setup do
-    import Supervisor.Spec
-    children = [worker(Tmate.SessionRegistry, [[name: Tmate.SessionRegistry]])]
-    Supervisor.start_link(children, [strategy: :one_for_one, name: Tmate.Supervisor])
-
-    {:ok, session} = Session.start_link(Tmate.Webhook.Null, {Daemon, self()})
+    {:ok, session} = Session.start_link([webhooks: [], registry: {}], {Daemon, self()})
     {:ok, session: session}
   end
 

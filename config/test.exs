@@ -8,7 +8,8 @@ config :tmate, :daemon,
   hmac_key: "key"
 
 config :tmate, :websocket,
-  enabled: false
+  enabled: false,
+  wsapi_key: "webhookkey"
 
 config :tmate, :webhook,
   webhooks: []

@@ -7,15 +7,13 @@ defmodule Tmate.DaemonTcp do
     :proc_lib.start_link(__MODULE__, :init, [{ref, socket, transport, opts}])
   end
 
-  def init({ref, socket, transport, _opts}) do
+  def init({ref, socket, transport, opts}) do
     :ok = :proc_lib.init_ack({:ok, self()})
 
     :ok = :ranch.accept_ack(ref)
     :ok = transport.setopts(socket, [active: :once])
-    {:ok, session} = Tmate.SessionRegistry.new_session(Tmate.SessionRegistry,
-                      {__MODULE__, {self(), socket, transport}})
-
-    Process.link(session)
+    {:ok, session} = Tmate.Session.start_link(opts,
+                       {__MODULE__, {self(), socket, transport}})
 
     state = %{socket: socket, transport: transport, session: session, mpac_buffer: <<>>}
     :gen_server.enter_loop(__MODULE__, [], state)

@@ -14,11 +14,12 @@ defmodule Tmate do
     {:ok, webhook_options} = Application.fetch_env(:tmate, :webhook)
 
     webhooks = webhook_options[:webhooks] |> Enum.map(& {Tmate.Webhook, &1})
+    registry = {Tmate.SessionRegistry, Tmate.SessionRegistry}
 
     children = [
       :ranch.child_spec(:daemon_tcp, 3, :ranch_tcp, daemon_options[:ranch_opts],
-                        Tmate.DaemonTcp, []),
-      worker(Tmate.SessionRegistry, [webhooks, [name: Tmate.SessionRegistry]]),
+                        Tmate.DaemonTcp, [webhooks: webhooks, registry: registry]),
+      worker(Tmate.SessionRegistry, [[name: Tmate.SessionRegistry]]),
     ]
 
     children = unless websocket_options[:enabled] == false do
