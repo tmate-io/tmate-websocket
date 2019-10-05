@@ -1,11 +1,12 @@
 defmodule Tmate.Session do
   require Tmate.ProtocolDefs, as: P
+  alias Tmate.WebApi.WebSocket
 
   use GenServer
   require Logger
 
   @max_snapshot_lines 300
-  @latest_version "2.2.1"
+  # @latest_version "2.2.1"
 
   def start_link(session_opts, daemon, opts \\ []) do
     GenServer.start_link(__MODULE__, {session_opts, daemon}, opts)
@@ -209,7 +210,7 @@ defmodule Tmate.Session do
 
     event_payload = %{ip_address: ip_address, pubkey: pubkey, client_version: client_version,
                       stoken: stoken, stoken_ro: stoken_ro, reconnected: reconnected,
-                      ssh_cmd_fmt: ssh_cmd_fmt, ws_url_fmt: Tmate.WebSocket.ws_url_fmt,
+                      ssh_cmd_fmt: ssh_cmd_fmt, ws_url_fmt: WebSocket.ws_url_fmt,
                       web_url_fmt: web_url_fmt}
 
     Logger.info("Session #{if reconnected, do: "reconnected", else: "started"
@@ -249,10 +250,10 @@ defmodule Tmate.Session do
     %{state | initialized: true, init_state: nil}
   end
 
-  defp maybe_notice_version_upgrade(@latest_version), do: nil
-  defp maybe_notice_version_upgrade(_client_version) do
-    delayed_notify_daemon(20 * 1000, "Your tmate client can be upgraded to #{@latest_version}")
-  end
+  # defp maybe_notice_version_upgrade(@latest_version), do: nil
+  # defp maybe_notice_version_upgrade(_client_version) do
+    # delayed_notify_daemon(20 * 1000, "Your tmate client can be upgraded to #{@latest_version}")
+  # end
 
   defp handle_ctl_msg(%{initialized: false}=state,
                       [P.tmate_ctl_header, 2=_protocol_version, ip_address, pubkey,
@@ -362,7 +363,7 @@ defmodule Tmate.Session do
     # Right now we are sending async messages, with no back pressure.
     # This might be problematic.
     # TODO We might want to serialize the msg here to avoid doing it N times.
-    for ws <- ws_list, do: Tmate.WebSocket.send_msg(ws, msg)
+    for ws <- ws_list, do: WebSocket.send_msg(ws, msg)
   end
 
   defp send_daemon_msg(state, msg) do
@@ -370,9 +371,9 @@ defmodule Tmate.Session do
     transport.send_msg(handle, msg)
   end
 
-  defp delayed_notify_daemon(timeout, msg) do
-    :erlang.start_timer(timeout, self(), {:notify_daemon, msg})
-  end
+  # defp delayed_notify_daemon(timeout, msg) do
+    # :erlang.start_timer(timeout, self(), {:notify_daemon, msg})
+  # end
 
   defp notify_daemon(state, msg) do
     send_daemon_msg(state, [P.tmate_ctl_deamon_fwd_msg,

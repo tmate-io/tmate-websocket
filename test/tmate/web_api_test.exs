@@ -49,7 +49,7 @@ defmodule Tmate.WebApiTest do
     Tmate.SessionRegistry.start_link([name: Tmate.SessionRegistry.WebApiTest])
 
     session_opts = [webhooks: webhooks, registry: registry]
-    router = fn conn -> Tmate.WebApi.call(conn, session_opts) end
+    router = fn conn -> Tmate.WebApi.Router.call(conn, session_opts) end
     {:ok, router: router, registry: registry}
   end
 
