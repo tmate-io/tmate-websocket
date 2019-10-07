@@ -201,13 +201,14 @@ defmodule Tmate.Session do
                 self(), state.id, stoken, stoken_ro)
     end
 
-    webhooks = if user_webhook_opts[:url] do
+    state = if user_webhook_opts[:url] do
       Logger.info("User webhook: #{inspect(user_webhook_opts)}")
-      state.webhooks ++ [{Tmate.Webhook, user_webhook_opts}]
+      %{state | webhooks: state.webhooks ++ [{Tmate.Webhook, user_webhook_opts}]}
     else
-      state.webhooks
+      state
     end
-    state = %{state | webhook_pids: Tmate.Webhook.Many.start_links(webhooks)}
+
+    state = %{state | webhook_pids: Tmate.Webhook.Many.start_links(state.webhooks)}
 
     user_facing_base_url = Application.get_env(:tmate, :master)[:user_facing_base_url]
     web_url_fmt = "#{user_facing_base_url}t/%s"
