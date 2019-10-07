@@ -17,10 +17,8 @@ defmodule Tmate.Mixfile do
   # Type `mix help compile.app` for more information
   def application do
     case Mix.env do
-      :test -> [mod: {ExUnit, []}, applications: [:logger, :plug]]
-      _ ->     [mod: {Tmate, []},  applications: [:logger, :ranch, :cowboy,
-                                   :plug, :plug_cowboy, :uuid, :message_pack,
-                                   :quantile_estimator, :jason, :httpoison]]
+      :test -> [mod: {ExUnit, []}]
+      _ ->     [mod: {Tmate, []}]
     end
   end
 
