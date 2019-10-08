@@ -342,14 +342,29 @@ defmodule Tmate.Session do
     state
   end
 
+  defp set_webhook_setting(state, name, value) do
+    # Due to a bug in tmate client 2.3.0 and lower, we are seing the tmate
+    # webhook options after the session is ready (and thus initialization
+    # complete). This bug was fixed with commit d654ff22 in tmate client.
+    # As a workaround, we kill the connection. When the client reconnects,
+    # it provides the webhook configurations before the ready event.
+    case state.init_state do
+      nil ->
+        Logger.debug("Webhook bug workaround: disconnecting client")
+        Process.exit(self(), {:shutdown, :bug_webhook})
+        state
+      init ->
+        user_webhook_opts = Keyword.put(init.user_webhook_opts, name, value)
+        %{state | init_state: %{init | user_webhook_opts: user_webhook_opts}}
+    end
+  end
+
   defp handle_daemon_exec_cmd(state, ["set-option", "-g", "tmate-webhook-userdata", webhook_userdata]) do
-    user_webhook_opts = Keyword.put(state.init_state.user_webhook_opts, :userdata, webhook_userdata)
-    %{state | init_state: %{state.init_state | user_webhook_opts: user_webhook_opts}}
+    set_webhook_setting(state, :userdata, webhook_userdata)
   end
 
   defp handle_daemon_exec_cmd(state, ["set-option", "-g", "tmate-webhook-url", webhook_url]) do
-    user_webhook_opts = Keyword.put(state.init_state.user_webhook_opts, :url, webhook_url)
-    %{state | init_state: %{state.init_state | user_webhook_opts: user_webhook_opts}}
+    set_webhook_setting(state, :url, webhook_url)
   end
 
   defp handle_daemon_exec_cmd(state, _args) do
