@@ -20,7 +20,6 @@ defmodule Tmate.Session do
               init_state: nil, webhook_pids: [],
               pending_ws_subs: [], ws_subs: [],
               daemon_protocol_version: -1,
-              host_latency: -1, host_latency_stats: Tmate.Stats.new,
               current_layout: [], clients: %{}}
 
     Process.flag(:trap_exit, true)
@@ -50,11 +49,6 @@ defmodule Tmate.Session do
     # * {:shutdown, :session_fin}: client sent a fin message. Session is closed.
     # * {:shutdown, :tcp_closed}: client disconnected. We can expect a reconnection.
     # * {:shutdown, :stale}: client reconencted, and this session is now stale.
-
-    emit_latency_stats(state, nil, state.host_latency_stats)
-    state.clients |> Enum.each(fn {_ref, client} ->
-      emit_latency_stats(state, client.id, client.latency_stats)
-    end)
 
     # We should put the following code in another process that monitors the
     # current process. This way, if the current process crashes, we would
@@ -92,10 +86,6 @@ defmodule Tmate.Session do
     GenServer.call(session, {:notify_daemon_msg, msg}, :infinity)
   end
 
-  def notify_latency(session, client_id, latency) do
-    GenServer.call(session, {:notify_latency, client_id, latency})
-  end
-
   def handle_call({:ws_request_sub, ws, client}, _from, state) do
     # We'll queue up the subscribers until we get the snapshot
     # so they can get a consistent stream.
@@ -123,10 +113,6 @@ defmodule Tmate.Session do
 
   def handle_call({:notify_daemon_msg, msg}, _from, state) do
     {:reply, :ok, handle_ctl_msg(state, msg)}
-  end
-
-  def handle_call({:notify_latency, client_id, latency}, _from, state) do
-    {:reply, :ok, handle_notify_latency(state, client_id, latency)}
   end
 
   defp emit_event(state, event_type, params \\ %{}) do
@@ -299,8 +285,8 @@ defmodule Tmate.Session do
     client_left(state, client_id)
   end
 
-  defp handle_ctl_msg(state, [P.tmate_ctl_latency, client_id, latency]) do
-    handle_notify_latency(state, client_id, latency)
+  defp handle_ctl_msg(state, [P.tmate_ctl_latency, _client_id, _latency]) do
+    state
   end
 
   defp handle_ctl_msg(state, [P.tmate_ctl_exec, username, ip_address, pubkey, command]) do
@@ -419,7 +405,7 @@ defmodule Tmate.Session do
 
   defp client_join(state, ref, client) do
     client_id = UUID.uuid1
-    client = Map.merge(client, %{id: client_id, latency_stats: Tmate.Stats.new})
+    client = Map.merge(client, %{id: client_id})
 
     state = %{state | clients: Map.put(state.clients, ref, client)}
     update_client_presence(state, client, true)
@@ -449,7 +435,6 @@ defmodule Tmate.Session do
   end
 
   defp notify_client_presence_webhooks(state, client, false) do
-    emit_latency_stats(state, client.id, client.latency_stats)
     emit_event(state, :session_left, %{id: client.id})
   end
 
@@ -482,40 +467,6 @@ defmodule Tmate.Session do
     end
 
     send_daemon_msg(state, [P.tmate_ctl_resize, max_cols, max_rows])
-  end
-
-  defp handle_notify_latency(state, -1, latency) do
-    host_latency_stats = Tmate.Stats.insert(state.host_latency_stats, latency)
-    %{state | host_latency: latency, host_latency_stats: host_latency_stats}
-  end
-
-  defp handle_notify_latency(state, ref, latency) do
-    case state.host_latency do
-      -1 -> state
-      host_latency ->
-        end_to_end_latency = latency + host_latency
-        report_end_to_end_latency(state, ref, end_to_end_latency)
-    end
-  end
-
-  defp report_end_to_end_latency(state, ref, end_to_end_latency) do
-    client = Map.fetch!(state.clients, ref)
-    client = %{client | latency_stats: Tmate.Stats.insert(client.latency_stats, end_to_end_latency)}
-    state = %{state | clients: Map.put(state.clients, ref, client)}
-
-    # end_to_end_latency
-    # |> ExStatsD.timer("#{Tmate.host}.end_to_end_latency")
-    # |> ExStatsD.timer("end_to_end_latency")
-    state
-  end
-
-  defp emit_latency_stats(state, client_id, stats) do
-    if Tmate.Stats.has_stats?(stats) do
-      latency_stats = [:n, :mean, :stddev, :median, :p90, :p99]
-        |> Enum.reduce(%{}, fn f, acc -> Map.put(acc, f, apply(Tmate.Stats, f, [stats])) end)
-      emit_event(state, :session_stats, %{id: client_id, latency: latency_stats})
-    end
-    :ok
   end
 
   # defp ssh_exec(state, ["identify", token], username, ip_address, pubkey) do

@@ -4,7 +4,7 @@ defmodule Tmate.WebApi.WebSocket do
 
   alias :cowboy_req, as: Request
 
-  @ping_interval_sec 10
+  @ping_interval_sec 300
 
   def init(req, _opts) do
     stoken = Request.binding(:stoken, req)
@@ -92,8 +92,6 @@ defmodule Tmate.WebApi.WebSocket do
   end
 
   def websocket_handle({:pong, _}, state) do
-    latency = :erlang.monotonic_time(:milli_seconds) - state.last_ping_at
-    Tmate.Session.notify_latency(state.session, self(), latency)
     {:ok, state}
   end
 
@@ -107,7 +105,6 @@ defmodule Tmate.WebApi.WebSocket do
 
   def websocket_info({:timeout, _ref, :ping}, state) do
     start_ping_timer()
-    state = Map.merge(state, %{last_ping_at: :erlang.monotonic_time(:milli_seconds)})
     {:reply, :ping, state}
   end
 

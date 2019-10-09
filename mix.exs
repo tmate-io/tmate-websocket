@@ -34,7 +34,6 @@ defmodule Tmate.Mixfile do
       {:uuid, "~> 1.1" },
       {:jason, ">= 0.0.0"},
       {:httpoison, ">= 0.0.0"},
-      {:quantile_estimator, github: "nviennot/quantile_estimator"},
       {:message_pack, github: "nviennot/msgpack-elixir"},
       {:distillery, "~> 2.1"},
     ]
