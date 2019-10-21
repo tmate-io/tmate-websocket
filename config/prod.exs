@@ -26,16 +26,17 @@ config :tmate, :websocket, Keyword.merge(websocket_ranch_opts,
   cowboy_opts: %{
     compress: true,
     proxy_header: System.get_env("USE_PROXY_PROTOCOL") == "1"},
-  base_url: System.get_env("WEBSOCKET_BASE_URL"),
-  wsapi_key: System.get_env("MASTER_WSAPI_KEY")
+  base_url: System.get_env("WEBSOCKET_BASE_URL")
 )
 
 config :tmate, :webhook,
   webhooks: [
-    [url: "#{System.get_env("MASTER_BASE_URL")}wsapi/webhook",
-     userdata: "#{System.get_env("MASTER_WSAPI_KEY")}"]],
+    [url: "#{System.get_env("MASTER_BASE_URL")}internal_api/webhook",
+     userdata: "#{System.get_env("INTERNAL_API_AUTH_TOKEN")}"]],
   max_attempts: 16, # ~2.7 hours of retries
   initial_retry_interval: 300
 
 config :tmate, :master,
-  user_facing_base_url: System.get_env("USER_FACING_BASE_URL")
+  user_facing_base_url: System.get_env("USER_FACING_BASE_URL"),
+  internal_api: [base_url: "#{System.get_env("MASTER_BASE_URL")}internal_api",
+                 auth_token: System.get_env("INTERNAL_API_AUTH_TOKEN")]

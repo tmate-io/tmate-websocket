@@ -18,17 +18,24 @@ defmodule Tmate.WebApi.Router do
     defexception message: "Unauthorized", plug_status: 401
   end
 
-  defp ensure_master_auth!(%{body_params: %{"auth_key" => auth_key}}) do
-    {:ok, ws_options} = Application.fetch_env(:tmate, :websocket)
-    if !Plug.Crypto.secure_compare(auth_key, ws_options[:wsapi_key]) do
+  defp ensure_internal_api_auth!(%{body_params: %{"auth_key" => auth_token}}) do
+    {:ok, master_options} = Application.fetch_env(:tmate, :master)
+    needed_auth_token = master_options[:internal_api][:auth_token]
+    if !Plug.Crypto.secure_compare(auth_token, needed_auth_token) do
       raise Error.Unauthorized
     end
   end
-  defp ensure_master_auth!(_), do: raise Error.Unauthorized
+  defp ensure_internal_api_auth!(_), do: raise Error.Unauthorized
 
+  # TODO take out
   post "/master_api/get_stale_sessions" do
-    ensure_master_auth!(conn)
-    Tmate.WebApi.MasterApi.get_stale_sessions(conn, opts)
+    ensure_internal_api_auth!(conn)
+    Tmate.WebApi.InternalApi.get_stale_sessions(conn, opts)
+  end
+
+  post "/internal_api/get_stale_sessions" do
+    ensure_internal_api_auth!(conn)
+    Tmate.WebApi.InternalApi.get_stale_sessions(conn, opts)
   end
 
   # get "/ws/session/:stoken" is defined at the top

@@ -26,14 +26,14 @@ defmodule Tmate.WebApiTest do
     {:ok, router: router, registry: registry}
   end
 
-  describe "/master_api/get_stale_sessions" do
+  describe "/internal_api/get_stale_sessions" do
     test "authentication required", %{router: router} do
-      conn = conn(:post, "/master_api/get_stale_sessions", %{})
+      conn = conn(:post, "/internal_api/get_stale_sessions", %{})
       expect_error(fn -> router.(conn) end)
       {status, _, _} = sent_resp(conn)
       assert status == 401
 
-      conn = conn(:post, "/master_api/get_stale_sessions", %{auth_key: "xxx"})
+      conn = conn(:post, "/internal_api/get_stale_sessions", %{auth_key: "xxx"})
       expect_error(fn -> router.(conn) end)
       {status, _, _} = sent_resp(conn)
       assert status == 401
@@ -48,8 +48,8 @@ defmodule Tmate.WebApiTest do
       register_new_session(registry, s1, "s1", "s1ro")
       register_new_session(registry, s2, "s2", "s2ro")
 
-      payload = %{auth_key: "webhookkey", session_ids: [s3, s4]}
-      conn = conn(:post, "/master_api/get_stale_sessions", payload)
+      payload = %{auth_key: "internal_api_auth_token", session_ids: [s3, s4]}
+      conn = conn(:post, "/internal_api/get_stale_sessions", payload)
       |> router.()
 
       assert conn.status == 200
