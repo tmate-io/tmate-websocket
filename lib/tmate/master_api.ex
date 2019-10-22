@@ -1,6 +1,11 @@
 defmodule Tmate.MasterApi do
-  {:ok, master_options} = Application.fetch_env(:tmate, :master)
-  use Tmate.Util.JsonApi, master_options[:internal_api]
+  def internal_api_opts do
+    # XXX We can't pass the auth token directly, it is not
+    # necessarily defined at compile time.
+    Application.fetch_env!(:tmate, :master)[:internal_api]
+  end
+  use Tmate.Util.JsonApi, &__MODULE__.internal_api_opts/0
+
   require Logger
 
   defp map_convert_string_keys_to_atom(map) do

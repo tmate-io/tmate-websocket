@@ -5,11 +5,12 @@ defmodule Tmate.WebApi.PlugVerifyAuthToken do
     defexception message: "Unauthorized", plug_status: 401
   end
 
-  def init(auth_token) do
-    [auth_token: auth_token]
+  def init(opts) do
+    opts
   end
 
   def call(conn, opts) do
+    opts = if is_function(opts), do: opts.(), else: opts
     verify_auth_token!(conn, opts)
     conn
   end

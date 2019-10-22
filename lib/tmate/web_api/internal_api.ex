@@ -7,12 +7,14 @@ defmodule Tmate.WebApi.InternalApi do
 
   plug Plug.Parsers, parsers: [:json], json_decoder: Jason
 
-  {:ok, master_options} = Application.fetch_env(:tmate, :master)
-  auth_token = master_options[:internal_api][:auth_token]
-  plug Tmate.WebApi.PlugVerifyAuthToken, auth_token
+  def internal_api_opts do
+    # XXX We can't pass the auth token directly, it is not
+    # necessarily defined at compile time.
+    Application.fetch_env!(:tmate, :master)[:internal_api]
+  end
+  plug Tmate.WebApi.PlugVerifyAuthToken, &__MODULE__.internal_api_opts/0
 
   plug :dispatch, builder_opts()
-
 
   post "get_stale_sessions" do
     stale_ids = get_stale_sessions_stub(conn.body_params, opts)

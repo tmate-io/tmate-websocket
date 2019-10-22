@@ -6,15 +6,19 @@ defmodule Tmate.Util.JsonApi do
       alias HTTPoison.Error
       require Logger
 
-      @base_url unquote(opts)[:base_url]
-      @auth_token unquote(opts)[:auth_token]
+      @api_opts unquote(opts)
+
+      defp api_opts() do
+        if is_function(@api_opts), do: @api_opts.(), else: @api_opts
+      end
 
       def process_url(url) do
-        @base_url <> url
+        api_opts()[:base_url] <> url
       end
 
       def process_request_headers(headers) do
-        auth_headers = if @auth_token, do: [{"Authorization", "Bearer " <> @auth_token}], else: []
+        auth_token = api_opts()[:auth_token]
+        auth_headers = if auth_token, do: [{"Authorization", "Bearer " <> auth_token}], else: []
         json_headers =  [{"Content-Type", "application/json"}, {"Accept", "application/json"}]
         headers ++ auth_headers ++ json_headers
       end
