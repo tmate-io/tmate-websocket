@@ -2,12 +2,12 @@ defmodule Tmate.WebApiTest do
   use ExUnit.Case
   use Plug.Test
 
-  defp expect_error(func) do
+  defp expect_plug_error(func) do
     try do
       func.()
       raise "No error raised"
-    catch
-      _, _ -> nil
+    rescue _e in Plug.Conn.WrapperError ->
+      nil
     end
   end
 
@@ -29,12 +29,12 @@ defmodule Tmate.WebApiTest do
   describe "/internal_api/get_stale_sessions" do
     test "authentication required", %{router: router} do
       conn = conn(:post, "/internal_api/get_stale_sessions", %{})
-      expect_error(fn -> router.(conn) end)
+      expect_plug_error(fn -> router.(conn) end)
       {status, _, _} = sent_resp(conn)
       assert status == 401
 
       conn = conn(:post, "/internal_api/get_stale_sessions", %{auth_key: "xxx"})
-      expect_error(fn -> router.(conn) end)
+      expect_plug_error(fn -> router.(conn) end)
       {status, _, _} = sent_resp(conn)
       assert status == 401
     end
