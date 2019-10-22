@@ -158,6 +158,11 @@ defmodule Tmate.Session do
     :ok = File.ln_s(stoken, p.(stoken_ro))
   end
 
+  defp get_web_url_fmt() do
+    user_facing_base_url = Application.get_env(:tmate, :master)[:user_facing_base_url]
+    "#{user_facing_base_url}t/%s"
+  end
+
   defp finalize_session_init(%{init_state: %{ip_address: ip_address, pubkey: pubkey, stoken: stoken,
       stoken_ro: stoken_ro, ssh_cmd_fmt: ssh_cmd_fmt,
       client_version: client_version, reconnection_data: reconnection_data,
@@ -196,8 +201,7 @@ defmodule Tmate.Session do
 
     state = %{state | webhook_pids: Tmate.Webhook.Many.start_links(state.webhooks)}
 
-    user_facing_base_url = Application.get_env(:tmate, :master)[:user_facing_base_url]
-    web_url_fmt = "#{user_facing_base_url}t/%s"
+    web_url_fmt = get_web_url_fmt()
 
     event_payload = %{ip_address: ip_address, pubkey: pubkey, client_version: client_version,
                       stoken: stoken, stoken_ro: stoken_ro, reconnected: reconnected,
@@ -469,14 +473,48 @@ defmodule Tmate.Session do
     send_daemon_msg(state, [P.tmate_ctl_resize, max_cols, max_rows])
   end
 
-  # defp ssh_exec(state, ["identify", token], username, ip_address, pubkey) do
-    # case state.master.identify_client(token, username, ip_address, pubkey) do
-      # {:ok, message} -> notify_exec_response(state, 0, message)
-      # {:error, reason} ->
-        # notify_exec_response(state, 1, "Internal error")
-        # raise reason
-    # end
-  # end
+  ##### SSH EXEC #####
+
+  defp human_time(time) do
+    {:ok, rel} = Timex.format(time, "{relative}", :relative)
+    rel
+  end
+
+  defp describe_session(%{disconnected_at: nil, ssh_cmd_fmt: ssh_cmd_fmt}, token) do
+    web_url_fmt = get_web_url_fmt()
+
+    ssh_conn = String.replace(ssh_cmd_fmt, "%s", token)
+    web_conn = String.replace(web_url_fmt, "%s", token)
+
+    "This session has moved to another server. Use the following to connect:\n" <>
+    "  Web: #{web_conn}\n" <>
+    "  SSH: #{ssh_conn}"
+  end
+
+  defp describe_session(%{closed: true, disconnected_at: time}, _token) do
+    "This session was closed #{human_time(time)}."
+  end
+
+  defp describe_session(%{closed: false, disconnected_at: time}, _token) do
+    "The session host disconnected #{human_time(time)}.\n" <>
+    "Hopefully it will reconnect soon. You may try again later."
+  end
+
+  defp ssh_exec(state, ["explain-session-not-found"], username, _ip_address, _pubkey) do
+    token = username
+
+    response = case Tmate.MasterApi.get_session(token) do
+      {:ok, session} ->
+        describe_session(session, token)
+      :not_found ->
+        :timer.sleep(:crypto.rand_uniform(50, 200))
+        "Invalid session token"
+      _ ->
+        :timer.sleep(:crypto.rand_uniform(50, 200))
+        "Internal error"
+    end
+    notify_exec_response(state, 1, response)
+  end
 
   defp ssh_exec(state, _command, _username, _ip_address, _pubkey) do
     notify_exec_response(state, 1, "Invalid command")

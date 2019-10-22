@@ -36,6 +36,7 @@ defmodule Tmate.Mixfile do
       {:httpoison, ">= 0.0.0"},
       {:message_pack, github: "nviennot/msgpack-elixir"},
       {:distillery, "~> 2.1"},
+      {:timex, "~> 3.5"},
     ]
   end
 end

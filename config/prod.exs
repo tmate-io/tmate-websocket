@@ -29,6 +29,8 @@ config :tmate, :websocket, Keyword.merge(websocket_ranch_opts,
   base_url: System.get_env("WEBSOCKET_BASE_URL")
 )
 
+config :tzdata, :autoupdate, :disabled
+
 config :tmate, :webhook,
   webhooks: [
     [url: "#{System.get_env("MASTER_BASE_URL")}internal_api/webhook",
