@@ -4,43 +4,21 @@ defmodule Tmate.MasterApi do
     # necessarily defined at compile time.
     Application.fetch_env!(:tmate, :master)[:internal_api]
   end
-  use Tmate.Util.JsonApi, &__MODULE__.internal_api_opts/0
-
-  require Logger
-
-  defp map_convert_string_keys_to_atom(map) do
-    Map.new(map, fn {k, v} ->
-      v = if is_map(v), do: map_convert_string_keys_to_atom(v), else: v
-      {String.to_atom(k), v}
-    end)
-  end
-
-  defp format_timestamp(obj, key) do
-    value = Map.get(obj, key)
-
-    value = if value do
-      {:ok, timestamp, 0} = DateTime.from_iso8601(value)
-      timestamp
-    else
-      value
-    end
-
-    Map.put(obj, key, value)
-  end
+  use Tmate.Util.JsonApi, fn_opts: &__MODULE__.internal_api_opts/0
 
   def get_session(token) do
     case get("/session", [], params: %{token: token}) do
-      {:ok, %HTTPoison.Response{status_code: 200, body: session}} ->
-        session = session
-        |> map_convert_string_keys_to_atom()
-        |> format_timestamp(:disconnected_at)
-        |> format_timestamp(:created_at)
+      {:ok, session} ->
+        session =
+          session
+          |> with_atom_keys()
+          |> as_timestamp(:disconnected_at)
+          |> as_timestamp(:created_at)
         {:ok, session}
-      {:ok, %HTTPoison.Response{status_code: 404}} ->
-        :not_found
-      {:error, %HTTPoison.Error{reason: reason}} ->
-        Logger.error("Internal API error. reason=#{reason}")
-        :error
+      {:error, 404} ->
+        {:error, :not_found}
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 end

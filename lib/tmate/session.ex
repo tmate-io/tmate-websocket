@@ -506,10 +506,10 @@ defmodule Tmate.Session do
     response = case Tmate.MasterApi.get_session(token) do
       {:ok, session} ->
         describe_session(session, token)
-      :not_found ->
+      {:error, :not_found} ->
         :timer.sleep(:crypto.rand_uniform(50, 200))
         "Invalid session token"
-      _ ->
+      {:error, _reason} ->
         :timer.sleep(:crypto.rand_uniform(50, 200))
         "Internal error"
     end
