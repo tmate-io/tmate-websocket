@@ -12,7 +12,7 @@ defmodule Tmate.WebApi.InternalApi do
     # necessarily defined at compile time.
     Application.fetch_env!(:tmate, :master)[:internal_api]
   end
-  plug Tmate.WebApi.PlugVerifyAuthToken, &__MODULE__.internal_api_opts/0
+  plug Tmate.Util.PlugVerifyAuthToken, fn_opts: &__MODULE__.internal_api_opts/0
 
   plug :dispatch, builder_opts()
 

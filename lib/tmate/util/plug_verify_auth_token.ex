@@ -1,4 +1,4 @@
-defmodule Tmate.WebApi.PlugVerifyAuthToken do
+defmodule Tmate.Util.PlugVerifyAuthToken do
   @behaviour Plug
 
   defmodule Error.Unauthorized do
@@ -10,7 +10,7 @@ defmodule Tmate.WebApi.PlugVerifyAuthToken do
   end
 
   def call(conn, opts) do
-    opts = if is_function(opts), do: opts.(), else: opts
+    opts = if opts[:fn_opts], do: opts[:fn_opts].(), else: opts
     verify_auth_token!(conn, opts)
     conn
   end
