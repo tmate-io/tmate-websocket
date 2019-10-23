@@ -39,24 +39,6 @@ defmodule Tmate.WebApiTest do
       assert status == 401
     end
 
-    test "get stale sessions (old auth)", %{router: router, registry: registry} do
-      s1 = UUID.uuid1()
-      s2 = UUID.uuid1()
-      s3 = UUID.uuid1()
-      s4 = UUID.uuid1()
-
-      register_new_session(registry, s1, "s1", "s1ro")
-      register_new_session(registry, s2, "s2", "s2ro")
-
-      payload = %{auth_key: "internal_api_auth_token", session_ids: [s3, s4]}
-      conn = conn(:post, "/master_api/get_stale_sessions", payload)
-      |> router.()
-
-      assert conn.status == 200
-      body = Jason.decode!(conn.resp_body)
-      assert body == %{"stale_ids" => [s3, s4]}
-    end
-
     test "get stale sessions", %{router: router, registry: registry} do
       s1 = UUID.uuid1()
       s2 = UUID.uuid1()
