@@ -1,6 +1,6 @@
 defmodule Tmate.Session do
   require Tmate.ProtocolDefs, as: P
-  alias Tmate.WebApi.WebSocket
+  alias Tmate.WsApi.WebSocket
 
   use GenServer
   require Logger

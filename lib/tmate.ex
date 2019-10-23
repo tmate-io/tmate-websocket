@@ -24,7 +24,7 @@ defmodule Tmate do
     ]
 
     children = unless websocket_options[:enabled] == false do
-      cowboy_opts = Map.merge(%{env: %{dispatch: Tmate.WebApi.Router.cowboy_dispatch(session_opts)}},
+      cowboy_opts = Map.merge(%{env: %{dispatch: Tmate.WsApi.Router.cowboy_dispatch(session_opts)}},
                               websocket_options[:cowboy_opts])
       children ++ [
         :ranch.child_spec(:websocket_tcp, 3, websocket_options[:listener], websocket_options[:ranch_opts],

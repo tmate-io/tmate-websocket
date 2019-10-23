@@ -1,4 +1,4 @@
-defmodule Tmate.WebApiTest do
+defmodule Tmate.WsApiTest do
   use ExUnit.Case
   use Plug.Test
 
@@ -18,11 +18,11 @@ defmodule Tmate.WebApiTest do
   end
 
   setup do
-    registry = {Tmate.SessionRegistry, Tmate.SessionRegistry.WebApiTest}
-    Tmate.SessionRegistry.start_link([name: Tmate.SessionRegistry.WebApiTest])
+    registry = {Tmate.SessionRegistry, Tmate.SessionRegistry.WsApiTest}
+    Tmate.SessionRegistry.start_link([name: Tmate.SessionRegistry.WsApiTest])
 
     session_opts = [webhooks: [], registry: registry]
-    router = fn conn -> Tmate.WebApi.Router.call(conn, session_opts) end
+    router = fn conn -> Tmate.WsApi.Router.call(conn, session_opts) end
     {:ok, router: router, registry: registry}
   end
 

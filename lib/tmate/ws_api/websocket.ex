@@ -1,4 +1,4 @@
-defmodule Tmate.WebApi.WebSocket do
+defmodule Tmate.WsApi.WebSocket do
   require Logger
   require Tmate.ProtocolDefs, as: P
 

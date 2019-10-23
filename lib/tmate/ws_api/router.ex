@@ -1,10 +1,10 @@
-defmodule Tmate.WebApi.Router do
+defmodule Tmate.WsApi.Router do
   use Plug.Router
   use Plug.ErrorHandler
 
   def cowboy_dispatch(session_opts) do
     :cowboy_router.compile([{:_, [
-      {"/ws/session/:stoken", Tmate.WebApi.WebSocket, []},
+      {"/ws/session/:stoken", Tmate.WsApi.WebSocket, []},
       {:_, Plug.Cowboy.Handler, {__MODULE__, session_opts}},
     ]}])
   end
@@ -14,11 +14,7 @@ defmodule Tmate.WebApi.Router do
   plug :dispatch, builder_opts()
 
   match "/internal_api/*glob" do
-    Plug.Router.Utils.forward(conn, ["internal_api"], Tmate.WebApi.InternalApi, opts)
-  end
-
-  match "/master_api/*glob" do
-    Plug.Router.Utils.forward(conn, ["internal_api"], Tmate.WebApi.InternalApi, opts)
+    Plug.Router.Utils.forward(conn, ["internal_api"], Tmate.WsApi.InternalApi, opts)
   end
 
   get "/" do

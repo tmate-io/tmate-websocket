@@ -1,4 +1,4 @@
-defmodule Tmate.WebApi.InternalApi do
+defmodule Tmate.WsApi.InternalApi do
   require Logger
   import Plug.Conn
 
