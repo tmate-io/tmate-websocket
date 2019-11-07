@@ -486,9 +486,9 @@ defmodule Tmate.Session do
     ssh_conn = String.replace(ssh_cmd_fmt, "%s", token)
     web_conn = String.replace(web_url_fmt, "%s", token)
 
-    "This session has moved to another server. Use the following to connect:\n" <>
-    "  Web: #{web_conn}\n" <>
-    "  SSH: #{ssh_conn}"
+    "The session has moved to another server. Use the following to connect:\n" <>
+    "web session: #{web_conn}\n" <>
+    "ssh session: #{ssh_conn}"
   end
 
   defp describe_session(%{closed: true, disconnected_at: time}, _token) do
