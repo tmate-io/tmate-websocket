@@ -163,40 +163,133 @@ defmodule Tmate.Session do
     |> MessagePack.unpack!
   end
 
-  defp rename_tmux_sockets!(old_stoken, old_stoken_ro, stoken, stoken_ro) do
-    {:ok, daemon_options} = Application.fetch_env(:tmate, :daemon)
-    p = fn filename -> Path.join(daemon_options[:tmux_socket_path], filename) end
-
-    :ok = File.rename(p.(old_stoken), p.(stoken))
-    File.rm(p.(old_stoken_ro))
-    File.rm(p.(stoken_ro))
-    :ok = File.ln_s(stoken, p.(stoken_ro))
-  end
-
   defp get_web_url_fmt() do
     user_facing_base_url = Application.get_env(:tmate, :master)[:user_facing_base_url]
     "#{user_facing_base_url}t/%s"
   end
 
+  defp rename_tmux_sockets!(old_stoken, old_stoken_ro, stoken, stoken_ro) do
+    {:ok, daemon_options} = Application.fetch_env(:tmate, :daemon)
+    t = fn token -> String.replace(token, ["/", "."], "_") end
+    p = fn token -> Path.join(daemon_options[:tmux_socket_path], token) end
+
+    old_stoken    = t.(old_stoken)
+    old_stoken_ro = t.(old_stoken_ro)
+    stoken        = t.(stoken)
+    stoken_ro     = t.(stoken_ro)
+
+    if old_stoken != stoken do
+      :ok = File.rename(p.(old_stoken), p.(stoken))
+    end
+
+    # The ro file is a symlink pointing to the rw socket,
+    # so renaming is insufficient
+    File.rm(p.(old_stoken_ro))
+    File.rm(p.(stoken_ro))
+    :ok = File.ln_s(stoken, p.(stoken_ro))
+  end
+
+  @max_token_length 50
+  @valid_token_regex ~r/^[a-zA-Z0-9-_]+$/
+
+  defp validate_session_token(token) do
+    cond do
+      !token -> :ok
+      String.length(token) == 0 -> {:error, :empty_token}
+      String.length(token) > @max_token_length -> {:error, :token_too_long}
+      not String.match?(token, @valid_token_regex) -> {:error, :invalid_token}
+      true -> :ok
+    end
+  end
+
+  defp get_named_session_tokens(stoken, stoken_ro,
+                     %{account_key: account_key, rw: desired_stoken, ro: desired_stoken_ro, }) do
+    cond do
+      !desired_stoken && !desired_stoken_ro ->
+        {:ok, {stoken, stoken_ro, 1}}
+      (err = validate_session_token(desired_stoken)) != :ok ->
+        err
+      (err = validate_session_token(desired_stoken_ro)) != :ok ->
+        err
+      desired_stoken == desired_stoken_ro ->
+        {:error, :same_tokens}
+      !Tmate.MasterApi.enabled? ->
+        {:ok, {desired_stoken || stoken, desired_stoken_ro || stoken_ro, 1}}
+      !account_key ->
+        {:error, :missing_account_key}
+      true ->
+        case Tmate.MasterApi.get_named_session_tokens(account_key, desired_stoken, desired_stoken_ro) do
+          {:ok, {prefixed_stoken, prefixed_stoken_ro, generation}} ->
+            {:ok, {prefixed_stoken || stoken, prefixed_stoken_ro || stoken_ro, generation}}
+          {:error, :not_found} ->
+            {:error, :invalid_account_key}
+          {:error, _reason} ->
+            {:error, :internal_error}
+        end
+    end
+  end
+
+  defp notify_named_session_error(state, reason) do
+    user_facing_base_url = Application.get_env(:tmate, :master)[:user_facing_base_url]
+    reg_url = "#{user_facing_base_url}register"
+    case reason do
+      :emoty_token ->
+        notify_daemon(state, "The session name is empty")
+      :token_too_long ->
+        notify_daemon(state, "The session name length too long (max #{@max_token_length} chars)")
+      :invalid_token ->
+        notify_daemon(state, "The session name has invalid characters"
+                              <> ". Use only alphanumeric, hyphens and underscores")
+      :same_tokens ->
+        notify_daemon(state, "The same session name for write and read-only access were provided"
+                              <> ". Try again with different names")
+      :missing_account_key ->
+        notify_daemon(state, "To name sessions, specify your account key with -k"
+                              <> ". To get an account key, please register at #{reg_url}")
+      :invalid_account_key ->
+        notify_daemon(state, "The provided account key is invalid. Please fix"
+                              <> ". You may reach out for help at help@tmate.io")
+      :internal_error ->
+        notify_daemon(state, "Temporary server error, tmate will disconnect and reconnect")
+        Process.exit(self(), {:shutdown, :master_api_fail})
+    end
+  end
+
   defp finalize_session_init(%{init_state: %{ip_address: ip_address, pubkey: pubkey, stoken: stoken,
-      stoken_ro: stoken_ro, ssh_cmd_fmt: ssh_cmd_fmt,
+      stoken_ro: stoken_ro, ssh_cmd_fmt: ssh_cmd_fmt, named_session: named_session,
       client_version: client_version, reconnection_data: reconnection_data,
       user_webhook_opts: user_webhook_opts}, ssh_only: ssh_only, foreground: foreground}=state) do
     old_stoken = stoken
     old_stoken_ro = stoken_ro
 
+    # named sessions
+    {stoken, stoken_ro, named_session_error, generation} =
+      cond do
+        reconnection_data -> {stoken, stoken_ro, nil, 1}
+        true ->
+          case get_named_session_tokens(stoken, stoken_ro, named_session) do
+            {:ok, {rw, ro, gen}} -> {rw, ro, nil, gen}
+            {:error, reason} -> {stoken, stoken_ro, reason, 1}
+          end
+      end
+
+    named = stoken != old_stoken || stoken_ro != old_stoken_ro
+
+    # reconnection
     {reconnected, [id, stoken, stoken_ro, _old_host, generation]} = case reconnection_data do
-      nil ->            {false, [UUID.uuid1, stoken, stoken_ro, nil, 1]}
+      nil ->            {false, [UUID.uuid1, stoken, stoken_ro, nil, generation]}
       [2 | rdata_v2] -> {true, rdata_v2}
       rdata_v1 ->       {true, rdata_v1 ++ [2]}
     end
     new_reconnection_data = [2, id, stoken, stoken_ro, Tmate.host, generation+1]
 
+    # socket rename
     if old_stoken != stoken || old_stoken_ro != stoken_ro do
       rename_tmux_sockets!(old_stoken, old_stoken_ro, stoken, stoken_ro)
       send_daemon_msg(state, [P.tmate_ctl_rename_session, stoken, stoken_ro])
     end
 
+    # session registration
     state = Map.merge(state, %{id: id, generation: generation})
     Logger.metadata(session_id: state.id)
 
@@ -207,6 +300,7 @@ defmodule Tmate.Session do
                 self(), state.id, stoken, stoken_ro)
     end
 
+    # webhook setup
     state = if user_webhook_opts[:url] do
       Logger.info("User webhook: #{inspect(user_webhook_opts)}")
       %{state | webhooks: state.webhooks ++ [{Tmate.Webhook, user_webhook_opts}]}
@@ -220,7 +314,7 @@ defmodule Tmate.Session do
 
     event_payload = %{ip_address: ip_address, pubkey: pubkey, client_version: client_version,
                       stoken: stoken, stoken_ro: stoken_ro, reconnected: reconnected,
-                      ssh_only: ssh_only, foreground: foreground,
+                      ssh_only: ssh_only, foreground: foreground, named: named,
                       ssh_cmd_fmt: ssh_cmd_fmt, ws_url_fmt: WebSocket.ws_url_fmt,
                       web_url_fmt: web_url_fmt}
 
@@ -228,6 +322,7 @@ defmodule Tmate.Session do
                  } (#{stoken |> String.slice(0, 4)}...)")
     emit_event(state, :session_register, event_payload)
 
+    # notifications
     ssh_cmd = String.replace(ssh_cmd_fmt, "%s", stoken)
     ssh_cmd_ro = String.replace(ssh_cmd_fmt, "%s", stoken_ro)
 
@@ -240,6 +335,8 @@ defmodule Tmate.Session do
     if !ssh_only, do:   notify_daemon(state, "web session: #{web_url}")
                         notify_daemon(state, "ssh session: #{ssh_cmd}")
     if reconnected, do: notify_daemon(state, "Reconnected")
+
+    if named_session_error, do: notify_named_session_error(state, named_session_error)
 
     if !ssh_only, do: daemon_set_env(state, "tmate_web_ro", web_url_ro)
                       daemon_set_env(state, "tmate_ssh_ro", ssh_cmd_ro)
@@ -265,6 +362,7 @@ defmodule Tmate.Session do
                        stoken, stoken_ro, ssh_cmd_fmt, client_version, daemon_protocol_version]) do
     init_state = %{ip_address: ip_address, pubkey: pubkey, stoken: stoken, stoken_ro: stoken_ro,
                    client_version: client_version, ssh_cmd_fmt: ssh_cmd_fmt,
+                   named_session: %{rw: nil, ro: nil, account_key: nil},
                    reconnection_data: nil, user_webhook_opts: [url: nil, userdata: ""]}
     state = %{state | daemon_protocol_version: daemon_protocol_version, init_state: init_state}
 
@@ -320,7 +418,6 @@ defmodule Tmate.Session do
     %{state | current_layout: layout}
   end
 
-
   defp handle_daemon_msg(state, [P.tmate_out_ready]) do
     finalize_session_init(state)
   end
@@ -343,7 +440,7 @@ defmodule Tmate.Session do
     state
   end
 
-  defp set_webhook_setting(state, name, value) do
+  defp set_webhook_setting(state, key, value) do
     # Due to a bug in tmate client 2.3.0 and lower, we are seing the tmate
     # webhook options after the session is ready (and thus initialization
     # complete). This bug was fixed with commit d654ff22 in tmate client.
@@ -355,8 +452,19 @@ defmodule Tmate.Session do
         Process.exit(self(), {:shutdown, :bug_webhook})
         state
       init ->
-        user_webhook_opts = Keyword.put(init.user_webhook_opts, name, value)
+        user_webhook_opts = Keyword.put(init.user_webhook_opts, key, value)
         %{state | init_state: %{init | user_webhook_opts: user_webhook_opts}}
+    end
+  end
+
+  defp set_named_session_setting(state, key, value) do
+    if state.init_state do
+      named_session = state.init_state.named_session
+      named_session = Map.replace!(named_session, key, value)
+      %{state | init_state: %{state.init_state | named_session: named_session}}
+    else
+      notify_daemon(state, "#{key} can only be set via the command line, or configuration file")
+      state
     end
   end
 
@@ -364,13 +472,14 @@ defmodule Tmate.Session do
     handle_daemon_exec_cmd(state, ["set-option", rest])
   end
 
-  defp handle_daemon_exec_cmd(state, ["set-option", key, value]) do
+  defp handle_daemon_exec_cmd(state, ["set-option", _key, ""]), do: state # important to filter empty session names
+  defp handle_daemon_exec_cmd(state, ["set-option", key, value]) when is_binary(value) do
     case key do
       "tmate-webhook-url"      -> set_webhook_setting(state, :url, value)
       "tmate-webhook-userdata" -> set_webhook_setting(state, :userdata, value)
-      "tmate-session-name"     -> state
-      "tmate-session-name-ro"  -> state
-      "tmate-account-key"      -> state
+      "tmate-session-name"     -> set_named_session_setting(state, :rw, value)
+      "tmate-session-name-ro"  -> set_named_session_setting(state, :ro, value)
+      "tmate-account-key"      -> set_named_session_setting(state, :account_key, value)
       "tmate-authorized-keys"  -> %{state | ssh_only: true}
       "tmate-set" -> case value do
         "authorized_keys=" <> _ssh_key -> %{state | ssh_only: true}
@@ -527,7 +636,10 @@ defmodule Tmate.Session do
   defp ssh_exec(state, ["explain-session-not-found"], username, _ip_address, _pubkey) do
     token = username
 
-    response = case Tmate.MasterApi.get_session(token) do
+    response = cond do
+      Tmate.MasterApi.enabled? -> Tmate.MasterApi.get_session(token)
+      true -> {:error, :not_found}
+    end |> case do
       {:ok, session} ->
         describe_session(session, token)
       {:error, :not_found} ->
