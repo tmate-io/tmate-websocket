@@ -17,6 +17,7 @@ defmodule Tmate.Session do
 
     state = %{webhooks: webhooks, registry: registry,
               daemon: daemon, initialized: false,
+              ssh_only: false, foreground: false,
               init_state: nil, webhook_pids: [],
               pending_ws_subs: [], ws_subs: [],
               daemon_protocol_version: -1,
@@ -66,6 +67,10 @@ defmodule Tmate.Session do
     :ok
   end
 
+  def ws_verify_auth(session) do
+    GenServer.call(session, {:ws_verify_auth}, :infinity)
+  end
+
   def ws_request_sub(session, ws, client) do
     GenServer.call(session, {:ws_request_sub, ws, client}, :infinity)
   end
@@ -84,6 +89,16 @@ defmodule Tmate.Session do
 
   def notify_daemon_msg(session, msg) do
     GenServer.call(session, {:notify_daemon_msg, msg}, :infinity)
+  end
+
+
+  def handle_call({:ws_verify_auth}, _from,
+                   %{initialized: true, ssh_only: ssh_only}=state) do
+    if ssh_only do
+      {:reply, {:error, :auth}, state}
+    else
+      {:reply, :ok, state}
+    end
   end
 
   def handle_call({:ws_request_sub, ws, client}, _from, state) do
@@ -166,11 +181,11 @@ defmodule Tmate.Session do
   defp finalize_session_init(%{init_state: %{ip_address: ip_address, pubkey: pubkey, stoken: stoken,
       stoken_ro: stoken_ro, ssh_cmd_fmt: ssh_cmd_fmt,
       client_version: client_version, reconnection_data: reconnection_data,
-      user_webhook_opts: user_webhook_opts}}=state) do
+      user_webhook_opts: user_webhook_opts}, ssh_only: ssh_only, foreground: foreground}=state) do
     old_stoken = stoken
     old_stoken_ro = stoken_ro
 
-    {reconnected, [id, stoken, stoken_ro, old_host, generation]} = case reconnection_data do
+    {reconnected, [id, stoken, stoken_ro, _old_host, generation]} = case reconnection_data do
       nil ->            {false, [UUID.uuid1, stoken, stoken_ro, nil, 1]}
       [2 | rdata_v2] -> {true, rdata_v2}
       rdata_v1 ->       {true, rdata_v1 ++ [2]}
@@ -205,6 +220,7 @@ defmodule Tmate.Session do
 
     event_payload = %{ip_address: ip_address, pubkey: pubkey, client_version: client_version,
                       stoken: stoken, stoken_ro: stoken_ro, reconnected: reconnected,
+                      ssh_only: ssh_only, foreground: foreground,
                       ssh_cmd_fmt: ssh_cmd_fmt, ws_url_fmt: WebSocket.ws_url_fmt,
                       web_url_fmt: web_url_fmt}
 
@@ -218,22 +234,17 @@ defmodule Tmate.Session do
     web_url = String.replace(web_url_fmt, "%s", stoken)
     web_url_ro = String.replace(web_url_fmt, "%s", stoken_ro)
 
-    if reconnected && old_host != Tmate.host do
-      notify_daemon(state, "The session has been reconnected to another server");
-    end
-    notify_daemon(state, "Note: clear your terminal before sharing readonly access")
-    notify_daemon(state, "web session read only: #{web_url_ro}")
-    notify_daemon(state, "ssh session read only: #{ssh_cmd_ro}")
-    notify_daemon(state, "web session: #{web_url}")
-    notify_daemon(state, "ssh session: #{ssh_cmd}")
-    if reconnected && old_host == Tmate.host do
-      notify_daemon(state, "Reconnected")
-    end
+    if !foreground, do: notify_daemon(state, "Note: clear your terminal before sharing readonly access")
+    if !ssh_only, do:   notify_daemon(state, "web session read only: #{web_url_ro}")
+                        notify_daemon(state, "ssh session read only: #{ssh_cmd_ro}")
+    if !ssh_only, do:   notify_daemon(state, "web session: #{web_url}")
+                        notify_daemon(state, "ssh session: #{ssh_cmd}")
+    if reconnected, do: notify_daemon(state, "Reconnected")
 
-    daemon_set_env(state, "tmate_web_ro", web_url_ro)
-    daemon_set_env(state, "tmate_ssh_ro", ssh_cmd_ro)
-    daemon_set_env(state, "tmate_web",    web_url)
-    daemon_set_env(state, "tmate_ssh",    ssh_cmd)
+    if !ssh_only, do: daemon_set_env(state, "tmate_web_ro", web_url_ro)
+                      daemon_set_env(state, "tmate_ssh_ro", ssh_cmd_ro)
+    if !ssh_only, do: daemon_set_env(state, "tmate_web",    web_url)
+                      daemon_set_env(state, "tmate_ssh",    ssh_cmd)
 
     daemon_set_env(state, "tmate_reconnection_data", pack_and_sign!(new_reconnection_data))
 
@@ -349,12 +360,25 @@ defmodule Tmate.Session do
     end
   end
 
-  defp handle_daemon_exec_cmd(state, ["set-option", "-g", "tmate-webhook-userdata", webhook_userdata]) do
-    set_webhook_setting(state, :userdata, webhook_userdata)
+  defp handle_daemon_exec_cmd(state, ["set-option", "-g" | rest]) do
+    handle_daemon_exec_cmd(state, ["set-option", rest])
   end
 
-  defp handle_daemon_exec_cmd(state, ["set-option", "-g", "tmate-webhook-url", webhook_url]) do
-    set_webhook_setting(state, :url, webhook_url)
+  defp handle_daemon_exec_cmd(state, ["set-option", key, value]) do
+    case key do
+      "tmate-webhook-url"      -> set_webhook_setting(state, :url, value)
+      "tmate-webhook-userdata" -> set_webhook_setting(state, :userdata, value)
+      "tmate-session-name"     -> state
+      "tmate-session-name-ro"  -> state
+      "tmate-account-key"      -> state
+      "tmate-authorized-keys"  -> %{state | ssh_only: true}
+      "tmate-set" -> case value do
+        "authorized_keys=" <> _ssh_key -> %{state | ssh_only: true}
+        "foreground=true" -> %{state | foreground: true}
+        _ -> state
+      end
+      _ -> state
+    end
   end
 
   defp handle_daemon_exec_cmd(state, _args) do

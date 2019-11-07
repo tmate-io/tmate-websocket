@@ -20,13 +20,18 @@ defmodule Tmate.WsApi.WebSocket do
       _ ->
         case Tmate.SessionRegistry.get_session(Tmate.SessionRegistry, stoken) do
           {mode, session} ->
-            ip = case req do
-              %{proxy_header: %{src_address: ip}} -> ip
-              %{peer: {ip, _port}} -> ip
+            case Tmate.Session.ws_verify_auth(session) do
+              :ok ->
+                ip = case req do
+                  %{proxy_header: %{src_address: ip}} -> ip
+                  %{peer: {ip, _port}} -> ip
+                end
+                ip = :inet_parse.ntoa(ip) |> to_string
+                state = %{session: session, access_mode: mode, identity: identity, ip: ip}
+                {:cowboy_websocket, req, state, %{compress: true}}
+              {:error, :auth}->
+                {:ok, Request.reply(403, %{}, "SSH access required", req), state}
             end
-            ip = :inet_parse.ntoa(ip) |> to_string
-            state = %{session: session, access_mode: mode, identity: identity, ip: ip}
-            {:cowboy_websocket, req, state, %{compress: true}}
           :error ->
             :timer.sleep(:crypto.rand_uniform(50, 200))
             {:ok, Request.reply(404, %{}, "Session not found", req), state}
