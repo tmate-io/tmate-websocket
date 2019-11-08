@@ -255,7 +255,7 @@ defmodule Tmate.Session do
     end
   end
 
-  defp finalize_session_init(%{init_state: %{ip_address: ip_address, pubkey: pubkey, stoken: stoken,
+  defp finalize_session_init(%{init_state: %{ip_address: ip_address, stoken: stoken,
       stoken_ro: stoken_ro, ssh_cmd_fmt: ssh_cmd_fmt, named_session: named_session,
       client_version: client_version, reconnection_data: reconnection_data,
       user_webhook_opts: user_webhook_opts}, ssh_only: ssh_only, foreground: foreground}=state) do
@@ -312,7 +312,7 @@ defmodule Tmate.Session do
 
     web_url_fmt = get_web_url_fmt()
 
-    event_payload = %{ip_address: ip_address, pubkey: pubkey, client_version: client_version,
+    event_payload = %{ip_address: ip_address, client_version: client_version,
                       stoken: stoken, stoken_ro: stoken_ro, reconnected: reconnected,
                       ssh_only: ssh_only, foreground: foreground, named: named,
                       ssh_cmd_fmt: ssh_cmd_fmt, ws_url_fmt: WebSocket.ws_url_fmt,
@@ -358,9 +358,9 @@ defmodule Tmate.Session do
   # end
 
   defp handle_ctl_msg(%{initialized: false}=state,
-                      [P.tmate_ctl_header, 2=_protocol_version, ip_address, pubkey,
+                      [P.tmate_ctl_header, 2=_protocol_version, ip_address, _pubkey,
                        stoken, stoken_ro, ssh_cmd_fmt, client_version, daemon_protocol_version]) do
-    init_state = %{ip_address: ip_address, pubkey: pubkey, stoken: stoken, stoken_ro: stoken_ro,
+    init_state = %{ip_address: ip_address, stoken: stoken, stoken_ro: stoken_ro,
                    client_version: client_version, ssh_cmd_fmt: ssh_cmd_fmt,
                    named_session: %{rw: nil, ro: nil, account_key: nil},
                    reconnection_data: nil, user_webhook_opts: [url: nil, userdata: ""]}
@@ -389,9 +389,8 @@ defmodule Tmate.Session do
     %{state | pending_ws_subs: [], ws_subs: state.ws_subs ++ state.pending_ws_subs}
   end
 
-  defp handle_ctl_msg(state, [P.tmate_ctl_client_join, client_id, ip_address, pubkey, readonly]) do
-    client_join(state, client_id, %{type: :ssh, ip_address: ip_address,
-                                    identity: pubkey, readonly: readonly})
+  defp handle_ctl_msg(state, [P.tmate_ctl_client_join, client_id, ip_address, _pubkey, readonly]) do
+    client_join(state, client_id, %{type: :ssh, ip_address: ip_address, readonly: readonly})
   end
 
   defp handle_ctl_msg(state, [P.tmate_ctl_client_left, client_id]) do
@@ -402,10 +401,10 @@ defmodule Tmate.Session do
     state
   end
 
-  defp handle_ctl_msg(state, [P.tmate_ctl_exec, username, ip_address, pubkey, command]) do
-    Logger.info("ssh exec: #{inspect(command)} from #{username}@#{ip_address} (#{pubkey})")
+  defp handle_ctl_msg(state, [P.tmate_ctl_exec, username, ip_address, _pubkey, command]) do
+    Logger.info("ssh exec: #{inspect(command)} from #{username}@#{ip_address}")
     command = String.split(command, " ") |> Enum.filter(& &1 != "")
-    ssh_exec(state, command, username, ip_address, pubkey)
+    ssh_exec(state, command, username, ip_address)
     state
   end
 
@@ -633,7 +632,7 @@ defmodule Tmate.Session do
     "Hopefully it will reconnect soon. You may try again later."
   end
 
-  defp ssh_exec(state, ["explain-session-not-found"], username, _ip_address, _pubkey) do
+  defp ssh_exec(state, ["explain-session-not-found"], username, _ip_address) do
     token = username
 
     response = cond do
@@ -652,7 +651,7 @@ defmodule Tmate.Session do
     notify_exec_response(state, 1, response)
   end
 
-  defp ssh_exec(state, _command, _username, _ip_address, _pubkey) do
+  defp ssh_exec(state, _command, _username, _ip_address) do
     notify_exec_response(state, 1, "Invalid command")
   end
 end

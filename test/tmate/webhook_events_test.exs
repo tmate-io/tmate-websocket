@@ -57,7 +57,6 @@ defmodule Tmate.WebhookEventsTest do
           "stoken_ro" => "stoken_ro",
           "ssh_cmd_fmt" => "ssh_cmd_fmt",
           "reconnected" => false,
-          "pubkey" => "pubkey",
           "ip_address" => "ip",
           "client_version" => "client_version"
         }
@@ -74,7 +73,6 @@ defmodule Tmate.WebhookEventsTest do
           "id" => c1_id,
           "readonly" => false,
           "type" => "ssh",
-          "identity" => "c1pubkey",
           "ip_address" => "c1ip"
         }
       }}
@@ -104,7 +102,6 @@ defmodule Tmate.WebhookEventsTest do
           "stoken_ro" => "stoken_ro",
           "ssh_cmd_fmt" => "ssh_cmd_fmt",
           "reconnected" => true,
-          "pubkey" => "pubkey",
           "ip_address" => "ip",
           "client_version" => "client_version"
         }
@@ -119,7 +116,6 @@ defmodule Tmate.WebhookEventsTest do
           "id" => c2_id,
           "readonly" => true,
           "type" => "ssh",
-          "identity" => "c2pubkey",
           "ip_address" => "c2ip"
         }
       }}
