@@ -41,24 +41,33 @@ defmodule Tmate.Util.JsonApi do
         %{response | body: body}
       end
 
-      defp simplify_response({:ok, %Response{status_code: 200, body: body}} = response, _) do
+      defp simplify_response({:ok, %Response{status_code: 200, body: body}}, _) do
         {:ok, body}
       end
 
-      defp simplify_response({:ok, %Response{status_code: status_code}} = response,
+      defp simplify_response({:ok, %Response{status_code: status_code}},
                               %Request{url: url, method: method}) do
         Logger.error("API error: #{method} #{url} [#{status_code}]")
         {:error, status_code}
       end
 
-      defp simplify_response({:error, %Error{reason: reason}} = response,
+      defp simplify_response({:error, %Error{reason: reason}},
                               %Request{url: url, method: method}) do
         Logger.error("API error: #{method} #{url} [#{reason}]")
         {:error, reason}
       end
 
+      defp debug_response({:ok, %Response{status_code: status_code, body: resp_body}} = response,
+                           %Request{url: url, body: req_body, params: params, method: method}) do
+        Logger.debug("API Request: #{inspect(method)} #{inspect(url)} #{inspect(params)} #{inspect(req_body)}")
+        Logger.debug("API Response: #{inspect(resp_body)} #{inspect(status_code)}")
+        response
+      end
+      defp debug_response(resp, _req), do: resp
+
       def request(request) do
         super(request)
+        |> debug_response(request)
         |> simplify_response(request)
       end
 
