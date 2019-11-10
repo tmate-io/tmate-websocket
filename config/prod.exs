@@ -3,7 +3,7 @@ use Mix.Config
 # and re-evaluated at runtime.
 
 config :logger, :console,
-  format: "$time $metadata[$level] $message\n",
+  format: "$metadata[$level] $message\n",
   metadata: [:session_id],
   level: :info
 
