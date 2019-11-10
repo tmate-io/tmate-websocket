@@ -341,12 +341,15 @@ defmodule Tmate.Session do
     web_url = String.replace(web_url_fmt, "%s", stoken)
     web_url_ro = String.replace(web_url_fmt, "%s", stoken_ro)
 
-    if !foreground, do: notify_daemon(state, "Note: clear your terminal before sharing readonly access")
-    if !ssh_only, do:   notify_daemon(state, "web session read only: #{web_url_ro}")
-                        notify_daemon(state, "ssh session read only: #{ssh_cmd_ro}")
-    if !ssh_only, do:   notify_daemon(state, "web session: #{web_url}")
-                        notify_daemon(state, "ssh session: #{ssh_cmd}")
-    if reconnected, do: notify_daemon(state, "Reconnected")
+    if !reconnected do
+      if !foreground, do: notify_daemon(state, "Note: clear your terminal before sharing readonly access")
+      if !ssh_only, do:   notify_daemon(state, "web session read only: #{web_url_ro}")
+                          notify_daemon(state, "ssh session read only: #{ssh_cmd_ro}")
+      if !ssh_only, do:   notify_daemon(state, "web session: #{web_url}")
+                          notify_daemon(state, "ssh session: #{ssh_cmd}")
+    else
+      notify_daemon(state, "Reconnected")
+    end
 
     if named_session_error, do: notify_named_session_error(state, named_session_error)
 
