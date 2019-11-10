@@ -257,7 +257,7 @@ defmodule Tmate.Session do
 
   defp finalize_session_init(%{init_state: %{ip_address: ip_address, stoken: stoken,
       stoken_ro: stoken_ro, ssh_cmd_fmt: ssh_cmd_fmt, named_session: named_session,
-      client_version: client_version, reconnection_data: reconnection_data,
+      client_version: client_version, reconnection_data: reconnection_data, uname: uname,
       user_webhook_opts: user_webhook_opts}, ssh_only: ssh_only, foreground: foreground}=state) do
     old_stoken = stoken
     old_stoken_ro = stoken_ro
@@ -328,7 +328,7 @@ defmodule Tmate.Session do
 
     event_payload = %{ip_address: ip_address, client_version: client_version,
                       stoken: stoken, stoken_ro: stoken_ro, reconnected: reconnected,
-                      ssh_only: ssh_only, foreground: foreground, named: named,
+                      ssh_only: ssh_only, foreground: foreground, named: named, uname: uname,
                       ssh_cmd_fmt: ssh_cmd_fmt, ws_url_fmt: WebSocket.ws_url_fmt,
                       web_url_fmt: web_url_fmt}
 
@@ -377,7 +377,7 @@ defmodule Tmate.Session do
                        stoken, stoken_ro, ssh_cmd_fmt, client_version, daemon_protocol_version]) do
     init_state = %{ip_address: ip_address, stoken: stoken, stoken_ro: stoken_ro,
                    client_version: client_version, ssh_cmd_fmt: ssh_cmd_fmt,
-                   named_session: %{rw: nil, ro: nil, account_key: nil},
+                   named_session: %{rw: nil, ro: nil, account_key: nil}, uname: nil,
                    reconnection_data: nil, user_webhook_opts: [url: nil, userdata: ""]}
     state = %{state | daemon_protocol_version: daemon_protocol_version, init_state: init_state}
 
@@ -430,6 +430,14 @@ defmodule Tmate.Session do
 
   defp handle_daemon_msg(state, [P.tmate_out_sync_layout | layout]) do
     %{state | current_layout: layout}
+  end
+
+  defp handle_daemon_msg(state, [P.tmate_out_uname, sysname, nodename,
+                                 release, version, machine]) do
+    uname = %{sysname: sysname, nodename: nodename,
+              release: release, version: version, machine: machine}
+
+    %{state | init_state: %{state.init_state | uname: uname}}
   end
 
   defp handle_daemon_msg(state, [P.tmate_out_ready]) do

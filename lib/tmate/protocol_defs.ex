@@ -61,6 +61,7 @@ defmodule Tmate.ProtocolDefs do
     tmate_out_reconnect,
     tmate_out_snapshot,
     tmate_out_exec_cmd,
+    tmate_out_uname,
   ]
 
   enum tmate_daemon_in_msg_types, [
