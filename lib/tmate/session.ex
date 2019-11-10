@@ -190,7 +190,8 @@ defmodule Tmate.Session do
   end
 
   @max_token_length 50
-  @valid_token_regex ~r/^[a-zA-Z0-9-_]+$/
+  @valid_token_regex ~r/^[a-zA-Z0-9](?:[a-zA-Z0-9]|-(?=[a-zA-Z0-9]))*$/
+  @account_key_length 30
 
   defp validate_session_token(token) do
     cond do
@@ -217,6 +218,8 @@ defmodule Tmate.Session do
         {:ok, {desired_stoken || stoken, desired_stoken_ro || stoken_ro, 1}}
       !account_key ->
         {:error, :missing_account_key}
+      String.length(account_key) != @account_key_length ->
+        {:error, :invalid_account_key}
       true ->
         case Tmate.MasterApi.get_named_session_tokens(account_key, desired_stoken, desired_stoken_ro) do
           {:ok, {prefixed_stoken, prefixed_stoken_ro, generation}} ->
@@ -238,8 +241,8 @@ defmodule Tmate.Session do
       :token_too_long ->
         notify_daemon(state, "The session name length too long (max #{@max_token_length} chars)")
       :invalid_token ->
-        notify_daemon(state, "The session name has invalid characters"
-                              <> ". Use only alphanumeric, hyphens and underscores")
+        notify_daemon(state, "The session name may only contain alphanumeric characters or single hyphens"
+                              <> ", and cannot begin or end with a hyphen")
       :same_tokens ->
         notify_daemon(state, "The same session name for write and read-only access were provided"
                               <> ". Try again with different names")
