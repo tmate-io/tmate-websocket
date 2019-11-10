@@ -250,7 +250,7 @@ defmodule Tmate.Session do
         notify_daemon(state, "The provided account key is invalid. Please fix"
                               <> ". You may reach out for help at help@tmate.io")
       :internal_error ->
-        notify_daemon(state, "Temporary server error, tmate will disconnect and reconnect")
+        notify_daemon(state, "Temporary server error, tmate will reconnect")
         Process.exit(self(), {:shutdown, :master_api_fail})
     end
   end
@@ -282,6 +282,20 @@ defmodule Tmate.Session do
       rdata_v1 ->       {true, rdata_v1 ++ [2]}
     end
     new_reconnection_data = [2, id, stoken, stoken_ro, Tmate.host, generation+1]
+
+    # logging
+    if reconnected do
+      "Session reconnected (count=#{generation-1})"
+    else
+      # Show named session fully (they contain a /), but truncate the rest
+      sformat = fn s -> cond do
+        String.match?(s, ~r/\//) -> s
+        String.match?(s, ~r/^ro-/) -> "#{String.slice(s, 0, 7)}..."
+        true -> "#{String.slice(s, 0, 4)}..."
+      end end
+      "Session started stoken=#{sformat.(stoken)} stoken_ro=#{sformat.(stoken_ro)}" <>
+      " ssh_only=#{inspect(ssh_only)} foreground=#{inspect(foreground)}"
+    end |> Logger.info
 
     # socket rename
     if old_stoken != stoken || old_stoken_ro != stoken_ro do
@@ -318,8 +332,6 @@ defmodule Tmate.Session do
                       ssh_cmd_fmt: ssh_cmd_fmt, ws_url_fmt: WebSocket.ws_url_fmt,
                       web_url_fmt: web_url_fmt}
 
-    Logger.info("Session #{if reconnected, do: "reconnected (count=#{generation-1})", else: "started"
-                 } (#{stoken |> String.slice(0, 4)}...)")
     emit_event(state, :session_register, event_payload)
 
     # notifications
