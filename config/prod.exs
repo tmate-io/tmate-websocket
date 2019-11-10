@@ -4,7 +4,7 @@ use Mix.Config
 
 config :logger, :console,
   format: "$metadata[$level] $message\n",
-  metadata: [:session_id],
+  metadata: [:token, :id],
   level: :info
 
 config :tmate, :daemon,

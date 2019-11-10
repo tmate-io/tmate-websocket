@@ -170,7 +170,7 @@ defmodule Tmate.Session do
 
   defp rename_tmux_sockets!(old_stoken, old_stoken_ro, stoken, stoken_ro) do
     {:ok, daemon_options} = Application.fetch_env(:tmate, :daemon)
-    t = fn token -> String.replace(token, ["/", "."], "_") end
+    t = fn token -> String.replace(token, ["/", "."], "=") end
     p = fn token -> Path.join(daemon_options[:tmux_socket_path], token) end
 
     old_stoken    = t.(old_stoken)
@@ -284,15 +284,16 @@ defmodule Tmate.Session do
     new_reconnection_data = [2, id, stoken, stoken_ro, Tmate.host, generation+1]
 
     # logging
+    sformat = fn s -> cond do
+      # Show named session fully (they contain a /), but truncate the rest
+      String.match?(s, ~r/\//) -> s
+      String.match?(s, ~r/^ro-/) -> "#{String.slice(s, 0, 7)}..."
+      true -> "#{String.slice(s, 0, 4)}..."
+    end end
+    Logger.metadata(token: "[#{sformat.(stoken)}]", id: id)
     if reconnected do
       "Session reconnected (count=#{generation-1})"
     else
-      # Show named session fully (they contain a /), but truncate the rest
-      sformat = fn s -> cond do
-        String.match?(s, ~r/\//) -> s
-        String.match?(s, ~r/^ro-/) -> "#{String.slice(s, 0, 7)}..."
-        true -> "#{String.slice(s, 0, 4)}..."
-      end end
       "Session started stoken=#{sformat.(stoken)} stoken_ro=#{sformat.(stoken_ro)}" <>
       " ssh_only=#{inspect(ssh_only)} foreground=#{inspect(foreground)}"
     end |> Logger.info
@@ -305,7 +306,6 @@ defmodule Tmate.Session do
 
     # session registration
     state = Map.merge(state, %{id: id, generation: generation})
-    Logger.metadata(session_id: state.id)
 
     case state.registry do
       {} -> nil
