@@ -26,12 +26,10 @@ defmodule Tmate.MasterApi do
     end
   end
 
-  def get_named_session_tokens(api_key, stoken, stoken_ro) do
-    params = %{api_key: api_key, stoken: stoken, stoken_ro: stoken_ro}
-    # it's a post, so it's easier to use JSON (we want to use nil values)
-    case post("/named_session_tokens", params) do
+  def get_named_session_prefix(api_key) do
+    case get("/named_session_prefix", [], params: %{api_key: api_key}) do
       {:ok, result} ->
-        {:ok, {result["stoken"], result["stoken_ro"], result["generation"]}}
+        {:ok, result["prefix"]}
       {:error, 404} ->
         {:error, :not_found}
       {:error, reason} ->

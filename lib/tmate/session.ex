@@ -204,10 +204,10 @@ defmodule Tmate.Session do
   end
 
   defp get_named_session_tokens(stoken, stoken_ro,
-                     %{api_key: api_key, rw: desired_stoken, ro: desired_stoken_ro, }) do
+                     %{api_key: api_key, rw: desired_stoken, ro: desired_stoken_ro}) do
     cond do
       !desired_stoken && !desired_stoken_ro ->
-        {:ok, {stoken, stoken_ro, 1}}
+        {:ok, {stoken, stoken_ro}}
       (err = validate_session_token(desired_stoken)) != :ok ->
         err
       (err = validate_session_token(desired_stoken_ro)) != :ok ->
@@ -221,9 +221,11 @@ defmodule Tmate.Session do
       String.length(api_key) != @api_key_length ->
         {:error, :invalid_api_key}
       true ->
-        case Tmate.MasterApi.get_named_session_tokens(api_key, desired_stoken, desired_stoken_ro) do
-          {:ok, {prefixed_stoken, prefixed_stoken_ro, generation}} ->
-            {:ok, {prefixed_stoken || stoken, prefixed_stoken_ro || stoken_ro, generation}}
+        case Tmate.MasterApi.get_named_session_prefix(api_key) do
+          {:ok, prefix} ->
+            desired_stoken    = desired_stoken    && "#{prefix}#{desired_stoken}"
+            desired_stoken_ro = desired_stoken_ro && "#{prefix}#{desired_stoken_ro}"
+            {:ok, {desired_stoken || stoken, desired_stoken_ro || stoken_ro}}
           {:error, :not_found} ->
             {:error, :invalid_api_key}
           {:error, _reason} ->
@@ -266,13 +268,13 @@ defmodule Tmate.Session do
     old_stoken_ro = stoken_ro
 
     # named sessions
-    {stoken, stoken_ro, named_session_error, generation} =
+    {stoken, stoken_ro, named_session_error} =
       cond do
-        reconnection_data -> {stoken, stoken_ro, nil, 1}
+        reconnection_data -> {stoken, stoken_ro, nil}
         true ->
           case get_named_session_tokens(stoken, stoken_ro, named_session) do
-            {:ok, {rw, ro, gen}} -> {rw, ro, nil, gen}
-            {:error, reason} -> {stoken, stoken_ro, reason, 1}
+            {:ok, {rw, ro}} -> {rw, ro, nil}
+            {:error, reason} -> {stoken, stoken_ro, reason}
           end
       end
 
@@ -280,7 +282,7 @@ defmodule Tmate.Session do
 
     # reconnection
     {reconnected, [id, stoken, stoken_ro, _old_host, generation]} = case reconnection_data do
-      nil ->            {false, [UUID.uuid1, stoken, stoken_ro, nil, generation]}
+      nil ->            {false, [UUID.uuid1, stoken, stoken_ro, nil, 1]}
       [2 | rdata_v2] -> {true, rdata_v2}
       rdata_v1 ->       {true, rdata_v1 ++ [2]}
     end
