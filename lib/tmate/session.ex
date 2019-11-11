@@ -191,7 +191,7 @@ defmodule Tmate.Session do
 
   @max_token_length 50
   @valid_token_regex ~r/^[a-zA-Z0-9](?:[a-zA-Z0-9]|-(?=[a-zA-Z0-9]))*$/
-  @account_key_length 30
+  @api_key_length 30
 
   defp validate_session_token(token) do
     cond do
@@ -204,7 +204,7 @@ defmodule Tmate.Session do
   end
 
   defp get_named_session_tokens(stoken, stoken_ro,
-                     %{account_key: account_key, rw: desired_stoken, ro: desired_stoken_ro, }) do
+                     %{api_key: api_key, rw: desired_stoken, ro: desired_stoken_ro, }) do
     cond do
       !desired_stoken && !desired_stoken_ro ->
         {:ok, {stoken, stoken_ro, 1}}
@@ -216,16 +216,16 @@ defmodule Tmate.Session do
         {:error, :same_tokens}
       !Tmate.MasterApi.enabled? ->
         {:ok, {desired_stoken || stoken, desired_stoken_ro || stoken_ro, 1}}
-      !account_key ->
-        {:error, :missing_account_key}
-      String.length(account_key) != @account_key_length ->
-        {:error, :invalid_account_key}
+      !api_key ->
+        {:error, :missing_api_key}
+      String.length(api_key) != @api_key_length ->
+        {:error, :invalid_api_key}
       true ->
-        case Tmate.MasterApi.get_named_session_tokens(account_key, desired_stoken, desired_stoken_ro) do
+        case Tmate.MasterApi.get_named_session_tokens(api_key, desired_stoken, desired_stoken_ro) do
           {:ok, {prefixed_stoken, prefixed_stoken_ro, generation}} ->
             {:ok, {prefixed_stoken || stoken, prefixed_stoken_ro || stoken_ro, generation}}
           {:error, :not_found} ->
-            {:error, :invalid_account_key}
+            {:error, :invalid_api_key}
           {:error, _reason} ->
             {:error, :internal_error}
         end
@@ -246,11 +246,11 @@ defmodule Tmate.Session do
       :same_tokens ->
         notify_daemon(state, "The same session name for write and read-only access were provided"
                               <> ". Try again with different names")
-      :missing_account_key ->
-        notify_daemon(state, "To name sessions, specify your account key with -k"
-                              <> ". To get an account key, please register at #{reg_url}")
-      :invalid_account_key ->
-        notify_daemon(state, "The provided account key is invalid. Please fix"
+      :missing_api_key ->
+        notify_daemon(state, "To name sessions, specify your api key with -k"
+                              <> ". Get an api key at #{reg_url}")
+      :invalid_api_key ->
+        notify_daemon(state, "The provided api key is invalid. Please fix"
                               <> ". You may reach out for help at help@tmate.io")
       :internal_error ->
         notify_daemon(state, "Temporary server error, tmate will reconnect")
@@ -380,7 +380,7 @@ defmodule Tmate.Session do
                        stoken, stoken_ro, ssh_cmd_fmt, client_version, daemon_protocol_version]) do
     init_state = %{ip_address: ip_address, stoken: stoken, stoken_ro: stoken_ro,
                    client_version: client_version, ssh_cmd_fmt: ssh_cmd_fmt,
-                   named_session: %{rw: nil, ro: nil, account_key: nil}, uname: nil,
+                   named_session: %{rw: nil, ro: nil, api_key: nil}, uname: nil,
                    reconnection_data: nil, user_webhook_opts: [url: nil, userdata: ""]}
     state = %{state | daemon_protocol_version: daemon_protocol_version, init_state: init_state}
 
@@ -504,7 +504,7 @@ defmodule Tmate.Session do
       "tmate-webhook-userdata" -> set_webhook_setting(state, :userdata, value)
       "tmate-session-name"     -> set_named_session_setting(state, :rw, value)
       "tmate-session-name-ro"  -> set_named_session_setting(state, :ro, value)
-      "tmate-account-key"      -> set_named_session_setting(state, :account_key, value)
+      "tmate-api-key"          -> set_named_session_setting(state, :api_key, value)
       "tmate-authorized-keys"  -> %{state | ssh_only: true}
       "tmate-set" -> case value do
         "authorized_keys=" <> _ssh_key -> %{state | ssh_only: true}
