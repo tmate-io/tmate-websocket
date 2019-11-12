@@ -496,7 +496,7 @@ defmodule Tmate.Session do
   end
 
   defp handle_daemon_exec_cmd(state, ["set-option", "-g" | rest]) do
-    handle_daemon_exec_cmd(state, ["set-option", rest])
+    handle_daemon_exec_cmd(state, ["set-option"] ++ rest)
   end
 
   defp handle_daemon_exec_cmd(state, ["set-option", _key, ""]), do: state # important to filter empty session names
