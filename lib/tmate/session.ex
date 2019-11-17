@@ -6,7 +6,8 @@ defmodule Tmate.Session do
   require Logger
 
   @max_snapshot_lines 300
-  # @latest_version "2.2.1"
+  @latest_version "2.4.0"
+  @upgrade_msg "See https://tmate.io for a list of new features"
 
   def start_link(session_opts, daemon, opts \\ []) do
     GenServer.start_link(__MODULE__, {session_opts, daemon}, opts)
@@ -367,15 +368,15 @@ defmodule Tmate.Session do
 
     daemon_send_client_ready(state)
 
-    # maybe_notice_version_upgrade(client_version)
+    maybe_notice_version_upgrade(client_version)
 
     %{state | initialized: true, init_state: nil}
   end
 
-  # defp maybe_notice_version_upgrade(@latest_version), do: nil
-  # defp maybe_notice_version_upgrade(_client_version) do
-    # delayed_notify_daemon(20 * 1000, "Your tmate client can be upgraded to #{@latest_version}")
-  # end
+  defp maybe_notice_version_upgrade(@latest_version), do: nil
+  defp maybe_notice_version_upgrade(_client_version) do
+    delayed_notify_daemon(20 * 1000, "tmate can be upgraded to #{@latest_version}. #{@upgrade_msg}")
+  end
 
   defp handle_ctl_msg(%{initialized: false}=state,
                       [P.tmate_ctl_header, 2=_protocol_version, ip_address, _pubkey,
@@ -541,9 +542,9 @@ defmodule Tmate.Session do
     transport.send_msg(handle, msg)
   end
 
-  # defp delayed_notify_daemon(timeout, msg) do
-    # :erlang.start_timer(timeout, self(), {:notify_daemon, msg})
-  # end
+  defp delayed_notify_daemon(timeout, msg) do
+    :erlang.start_timer(timeout, self(), {:notify_daemon, msg})
+  end
 
   defp notify_daemon(state, msg) do
     send_daemon_msg(state, [P.tmate_ctl_deamon_fwd_msg,
