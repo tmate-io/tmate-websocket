@@ -236,7 +236,7 @@ defmodule Tmate.Session do
 
   defp notify_named_session_error(state, reason) do
     user_facing_base_url = Application.get_env(:tmate, :master)[:user_facing_base_url]
-    reg_url = "#{user_facing_base_url}register"
+    reg_url = "#{user_facing_base_url}#api_key"
     case reason do
       :emoty_token ->
         notify_daemon(state, "The session name is empty")
@@ -253,7 +253,7 @@ defmodule Tmate.Session do
                               <> ". Get an api key at #{reg_url}")
       :invalid_api_key ->
         notify_daemon(state, "The provided api key is invalid. Please fix"
-                              <> ". You may reach out for help at help@tmate.io")
+                              <> ". You may reach out for help at support@tmate.io")
       :internal_error ->
         notify_daemon(state, "Temporary server error, tmate will reconnect")
         Process.exit(self(), {:shutdown, :master_api_fail})
