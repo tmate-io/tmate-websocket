@@ -7,7 +7,9 @@ defmodule Tmate.WsApi.WebSocket do
   @ping_interval_sec 300
 
   def init(req, _opts) do
-    stoken = Request.binding(:stoken, req)
+    token_path = Request.path_info(req)
+    stoken = Enum.join(token_path, "/") # tokens can have /, and comes in as an array
+
     Logger.metadata([stoken: stoken])
 
     state = %{}

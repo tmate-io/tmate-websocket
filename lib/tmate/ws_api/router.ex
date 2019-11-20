@@ -4,7 +4,7 @@ defmodule Tmate.WsApi.Router do
 
   def cowboy_dispatch(session_opts) do
     :cowboy_router.compile([{:_, [
-      {"/ws/session/:stoken", Tmate.WsApi.WebSocket, []},
+      {"/ws/session/[...]", Tmate.WsApi.WebSocket, []},
       {:_, Plug.Cowboy.Handler, {__MODULE__, session_opts}},
     ]}])
   end
