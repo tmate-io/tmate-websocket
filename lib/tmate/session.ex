@@ -301,7 +301,9 @@ defmodule Tmate.Session do
       "Session reconnected (count=#{generation-1})"
     else
       "Session started stoken=#{sformat.(stoken)} stoken_ro=#{sformat.(stoken_ro)}" <>
-      " ssh_only=#{inspect(ssh_only)} foreground=#{inspect(foreground)}"
+      " ssh_only=#{inspect(ssh_only)}" <>
+      " foreground=#{inspect(foreground)}" <>
+      " named=#{inspect(named)}"
     end |> Logger.info
 
     # socket rename
