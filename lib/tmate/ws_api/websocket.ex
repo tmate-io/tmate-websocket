@@ -4,7 +4,7 @@ defmodule Tmate.WsApi.WebSocket do
 
   alias :cowboy_req, as: Request
 
-  @ping_interval_sec 300
+  @ping_interval_sec 30 # cowboy disconnects if activity stops after 60s
 
   def init(req, _opts) do
     token_path = Request.path_info(req)
@@ -85,7 +85,7 @@ defmodule Tmate.WsApi.WebSocket do
                     readonly: [ro: true, rw: false][state.access_mode]}
     :ok = Tmate.Session.ws_request_sub(state.session, self(), client_info)
 
-    start_ping_timer(3000)
+    start_ping_timer()
     {:ok, state}
   end
 
@@ -98,7 +98,7 @@ defmodule Tmate.WsApi.WebSocket do
     {:ok, state}
   end
 
-  def websocket_handle({:pong, _}, state) do
+  def websocket_handle({:pong, _msg}, state) do
     {:ok, state}
   end
 
@@ -112,7 +112,7 @@ defmodule Tmate.WsApi.WebSocket do
 
   def websocket_info({:timeout, _ref, :ping}, state) do
     start_ping_timer()
-    {:reply, :ping, state}
+    {:reply, {:ping, "P"}, state}
   end
 
   def websocket_info({:DOWN, _ref, _type, _pid, _info}, state) do
