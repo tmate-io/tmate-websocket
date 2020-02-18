@@ -365,6 +365,7 @@ defmodule Tmate.Session do
                       daemon_set_env(state, "tmate_ssh_ro", ssh_cmd_ro)
     if !ssh_only, do: daemon_set_env(state, "tmate_web",    web_url)
                       daemon_set_env(state, "tmate_ssh",    ssh_cmd)
+    set_env_num_clients(state, 0)
 
     daemon_set_env(state, "tmate_reconnection_data", pack_and_sign!(new_reconnection_data))
 
@@ -610,7 +611,12 @@ defmodule Tmate.Session do
     num_clients = Kernel.map_size(state.clients)
     msg = "A mate has #{verb} (#{client.ip_address}) -- " <>
           "#{num_clients} client#{if num_clients > 1, do: 's'} currently connected"
+    set_env_num_clients(state, num_clients)
     notify_daemon(state, msg)
+  end
+
+  defp set_env_num_clients(state, num_clients) do
+    daemon_set_env(state, "tmate_num_clients", "#{num_clients}")
   end
 
   defp update_client_size(state, ref, size) do
