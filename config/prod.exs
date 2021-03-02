@@ -26,7 +26,8 @@ config :tmate, :websocket, Keyword.merge(websocket_ranch_opts,
   cowboy_opts: %{
     compress: true,
     proxy_header: System.get_env("USE_PROXY_PROTOCOL") == "1"},
-  base_url: System.get_env("WEBSOCKET_BASE_URL")
+  base_url: System.get_env("WEBSOCKET_BASE_URL"),
+  trust_x_real_ip: System.get_env("TRUST_X_REAL_IP") == "1"
 )
 
 config :tzdata, :autoupdate, :disabled
