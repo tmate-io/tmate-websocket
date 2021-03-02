@@ -24,8 +24,12 @@ defmodule Tmate.WsApi.WebSocket do
           {mode, session} ->
             case Tmate.Session.ws_verify_auth(session) do
               :ok ->
+                trust_x_real_ip = Application.get_env(:tmate, :websocket)[:trust_x_real_ip]
                 ip = case req do
                   %{proxy_header: %{src_address: ip}} -> ip
+                  %{headers: %{"x-real-ip" => ipstring}} when trust_x_real_ip ->
+                    {_, ip} = :inet.parse_address(ipstring |> to_charlist)
+                    ip
                   %{peer: {ip, _port}} -> ip
                 end
                 ip = :inet_parse.ntoa(ip) |> to_string
