@@ -32,7 +32,7 @@ defmodule Tmate.Util.JsonApi do
       end
 
       def process_response(%Response{headers: headers, body: body} = response) do
-        content_type_hdr = Enum.find(headers, fn {name, _} -> name == "content-type" end)
+        content_type_hdr = Enum.find(headers, fn {name, _} -> String.downcase(name) == "content-type" end)
         body = case content_type_hdr do
           {_, "application/json" <> _} -> Jason.decode!(body)
           _ -> body
